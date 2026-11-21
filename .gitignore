@@ -1,0 +1,13 @@
+/notes/
+/.venv-mcp/
+/sandbox/
+/build/
+/bin/
+__pycache__/
+*.obj
+*.pdb
+*.ilk
+*.res
+*.exe
+.vs/
+.idea/
