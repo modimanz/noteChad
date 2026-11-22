@@ -395,6 +395,13 @@ static BOOL md_open(HWND owner, HWND edit, BOOL preview) {
     SendMessageW(window, WM_SIZE, 0, 0); ShowWindow(window, SW_SHOW); SetForegroundWindow(window); SetFocus(v->child);
     return TRUE;
 }
+void md_forget(HWND edit) {
+    HWND windows[2] = {md_outline_window, md_preview_window};
+    for (int i = 0; i < 2; ++i) if (IsWindow(windows[i])) {
+        MdView *v = (MdView *)GetWindowLongPtrW(windows[i], GWLP_USERDATA);
+        if (v && v->source == edit) DestroyWindow(windows[i]);
+    }
+}
 BOOL md_command(HWND owner, HWND edit, UINT id) {
     WCHAR *s; DWORD a = 0, b = 0; BOOL ok;
     if (!IsWindow(edit)) return FALSE;

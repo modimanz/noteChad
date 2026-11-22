@@ -1,11 +1,13 @@
 # Windows x64 verification
 
-`bin/nodeChad.exe` and the optional `bin/nodeChad-asm.exe` both measured **76,288 bytes (74.5 KiB)** in the tested MSVC x64 builds. Replacing the C offset routine with the MASM version did not reduce the final PE size. The comparison is for this routine, not a claim about a hypothetical all-assembly editor.
+`bin/nodeChad.exe` and the optional `bin/nodeChad-asm.exe` both measured **89,600 bytes (87.5 KiB)** in the tested MSVC x64 builds. Replacing the C offset routine with the MASM version did not reduce the final PE size. The comparison is for this routine, not a claim about a hypothetical all-assembly editor.
 
 `dumpbin /dependents` showed Windows OS and Universal CRT imports, with `WINHTTP.dll` delay-loaded. No model, browser runtime or Python interpreter is part of the editor executable.
 
 | Check | Entry point | What was exercised |
 |---|---|---|
+| Tabs and windows | `python tests/test_tabs_core.py`, `python tests/test_router.py`, `python tests/test_window_drag.py` | Two separate launches share the normal window workspace. A dragged dirty tab keeps its native editor, selection, undo and original path. Cancelling a window close preserves unsaved tabs. |
+| Installer | `python tests/test_installer.py`, `python installer/verify.py` | Read back per-user MSI tables, extract the embedded cabinet and compare its executable with the build and SHA-256 receipt. |
 | Native editor | `python tests/test_editor.py` | Launch, edit, save and reopen a Markdown file; unsaved GUI changes visible to the API; reject stale changes, unrelated overwrite, changed-on-disk save and dirty load; Undo of Markdown/API selection replacement. |
 | File I/O | `python tests/test_textfile_build.py` | 307 native checks on real temporary files, including both common Unicode encodings, round trips, write conflicts and concurrent exclusive creation. |
 | Markdown | `python tests/test_markdown.py` | Source-preserving outline/preview, fenced blocks, keyboard navigation, tasks, and selection offsets beyond 64K, against actual Windows controls. |
@@ -20,5 +22,7 @@ Run the MCP check in PowerShell from the project root with the optional `mcp` pa
 $env:NODECHAD_MCP_EXE = (Resolve-Path .\bin\nodeChad.exe).Path
 python -m unittest discover -s tests -p 'test_mcp*.py' -v
 ```
+
+The v0.1.0 MSI was also installed for a Windows user. Windows Installer reported the product installed at version `0.1.0`; the installed executable matched the release SHA-256, and the Start shortcut pointed to that executable. The five tab tests and four editor/API tests passed against the installed copy. Upgrade, uninstall and Explorer's app picker were not exercised live.
 
 **Scope:** Windows x64, local filesystem. Markdown preview renders a subset, not all of CommonMark. This is a note editor, not a large-file editor: files are capped at 8 MiB and very long lines can be slow. AI model output quality, other CPU architectures, power-failure durability and hostile concurrent writers were not tested.

@@ -15,6 +15,8 @@ enum {
    UI-thread only. edit is a Unicode classic multiline EDIT owned by caller.
    Source text is never changed by navigation or preview. */
 BOOL md_command(HWND owner, HWND edit, UINT id);
+/* Close modeless views before a source is hidden, moved or destroyed. */
+void md_forget(HWND edit);
 #ifdef __cplusplus
 }
 #endif

@@ -1,10 +1,14 @@
 # nodeChad
 
-A classic, single-document text editor for Windows with Markdown navigation and a local automation API. The portable editor is one native x64 executable. It does not replace Windows Notepad, register file associations, start an AI model or run a background server.
+A native Windows text and Markdown editor with draggable tabs, a local automation API, and opt-in AI completion. The editor is a single x64 executable. It does not replace Windows Notepad or change your default editor.
 
-## Run
+## Install or run portable
 
-Double-click `bin\nodeChad.exe`, drag a text file onto its window, or open the supplied Markdown example:
+[Download the Windows x64 installer](https://github.com/modimanz/noteChad/releases/latest/download/nodeChad-Setup-x64.msi). It installs for the current user, adds **nodeChad** to Start, and can be removed from **Settings → Apps → Installed apps**. The MSI is unsigned. For a portable copy, download `nodeChad.exe` from the same [release](https://github.com/modimanz/noteChad/releases/latest). Neither requires Python.
+
+## Try it from source
+
+[Build the editor](#build-and-test), then double-click `bin\nodeChad.exe` or open the supplied Markdown example:
 
 ```powershell
 .\bin\nodeChad.exe .\examples\field-notes.md
@@ -12,6 +16,9 @@ Double-click `bin\nodeChad.exe`, drag a text file onto its window, or open the s
 
 | Action | Shortcut |
 |---|---|
+| New tab / Close tab | Ctrl+T / Ctrl+W |
+| Next tab / Previous tab | Ctrl+Tab / Ctrl+Shift+Tab |
+| New window / Move current tab to new window | Ctrl+Shift+N / Ctrl+Shift+M |
 | New / Open / Save / Save As | Ctrl+N / Ctrl+O / Ctrl+S / Ctrl+Shift+S |
 | Find / Find next | Ctrl+F / F3 |
 | Insert local time and date | F5 |
@@ -20,7 +27,9 @@ Double-click `bin\nodeChad.exe`, drag a text file onto its window, or open the s
 | Reading preview | F6 |
 | Request a local completion after enabling it in **AI** | Ctrl+Space |
 
-The asterisk in the title marks unsaved edits. **New**, **Open** and **Close** ask before discarding them. Word wrap is on by default; switching it preserves text and selection but clears the native control's undo history.
+Drag a tab onto another nodeChad window’s **tab strip** to move it, along its own strip to reorder it, or onto the desktop to give it a window of its own. The tab keeps its unsaved text, selection and undo history. Drop multiple files from Explorer to open them as tabs.
+
+An asterisk marks a tab with unsaved edits. Closing a tab or window asks before discarding those edits. Word wrap is on by default; switching wrapping preserves text and selection but clears the native control’s undo history. Hermes-controlled windows stay single-document: tab gestures never redirect an agent to another document.
 
 ## Control it from Hermes
 
