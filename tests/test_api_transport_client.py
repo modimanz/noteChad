@@ -6,8 +6,8 @@ import sys
 from types import SimpleNamespace
 import unittest
 
-PATH = Path(__file__).resolve().parents[1] / 'tools/nodechad_client.py'
-SPEC = importlib.util.spec_from_file_location('nodechad_client', PATH)
+PATH = Path(__file__).resolve().parents[1] / 'tools/notechad_client.py'
+SPEC = importlib.util.spec_from_file_location('notechad_client', PATH)
 client = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = client
 SPEC.loader.exec_module(client)
@@ -15,7 +15,7 @@ SPEC.loader.exec_module(client)
 
 class ClientTests(unittest.TestCase):
     def session(self, wire):
-        nc = client.NodeChad('unused-fixture.exe', visible=True)
+        nc = client.NoteChad('unused-fixture.exe', visible=True)
         nc.process = SimpleNamespace(stdin=io.BytesIO(), stdout=io.BytesIO(wire))
         self.addCleanup(nc.close)
         return nc
@@ -63,7 +63,7 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(nc.process.stdin.getvalue(), b'edit 8 2 3 4\n\xf0\x9f\x98\x80')
 
     def test_context_required_and_no_implicit_restart(self):
-        nc = client.NodeChad('unused-fixture.exe')
+        nc = client.NoteChad('unused-fixture.exe')
         with self.assertRaises(RuntimeError):
             nc.request('read')
         nc.close()

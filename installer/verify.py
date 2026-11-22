@@ -39,7 +39,7 @@ def verify(package, executable):
     props = dict(tables['Property'])
     if 'ALLUSERS' in props or tables['CustomAction'] or any(row[1] != '1' for row in tables['Registry']):
         raise ValueError('Package is not exclusively current-user/no-custom-actions')
-    if len(tables['File']) != 1 or tables['File'][0][2] != 'NODECHAD.EXE|nodeChad.exe':
+    if len(tables['File']) != 1 or tables['File'][0][2] != 'NOTECHAD.EXE|noteChad.exe':
         raise ValueError('Unexpected MSI payload file list')
     if db.GetSummaryInformation(0).GetProperty(15) != 10:
         raise ValueError('MSI is not marked compressed and non-elevating (LUA)')
@@ -48,7 +48,7 @@ def verify(package, executable):
     del view, row, db
     scratch = Path(os.environ['LOCALAPPDATA']) / 'hermes/cache/scratch'
     scratch.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix='nodechad-cab-check-', dir=scratch) as tmp:
+    with tempfile.TemporaryDirectory(prefix='notechad-cab-check-', dir=scratch) as tmp:
         tmp = Path(tmp)
         cab = tmp / 'payload.cab'
         msi = ctypes.WinDLL('msi', use_last_error=True)
@@ -97,9 +97,9 @@ def verify(package, executable):
         def callback(context, notification, param1, param2):
             if notification == 0x11:  # SPFILENOTIFY_FILEINCABINET
                 info = ctypes.cast(param1, ctypes.POINTER(CabinetInfo)).contents
-                if info.NameInCabinet != 'NodeChadExe':
+                if info.NameInCabinet != 'NoteChadExe':
                     return 0  # FILEOP_ABORT: never extract unexpected paths
-                info.FullTargetName = str(target / 'NodeChadExe')
+                info.FullTargetName = str(target / 'NoteChadExe')
                 return 1  # FILEOP_DOIT
             return 0  # NO_ERROR for informational/extracted notifications
         setupapi = ctypes.WinDLL('setupapi', use_last_error=True)
@@ -108,24 +108,24 @@ def verify(package, executable):
         if not setupapi.SetupIterateCabinetW(str(cab), 0, callback, None):
             raise ctypes.WinError(ctypes.get_last_error())
         files = sorted(path.name for path in target.iterdir())
-        if files != ['NodeChadExe']:
+        if files != ['NoteChadExe']:
             raise ValueError(f'Unexpected cabinet file list: {files}')
-        extracted = target / 'NodeChadExe'
-        extracted.rename(target / 'nodeChad.exe')
-        actual = digest(target / 'nodeChad.exe')
+        extracted = target / 'NoteChadExe'
+        extracted.rename(target / 'noteChad.exe')
+        actual = digest(target / 'noteChad.exe')
         if actual != receipt['payload_sha256'] or actual != digest(executable):
             raise ValueError('Extracted payload SHA-256 differs from source/receipt')
     return {'version': receipt['version'], 'product_code': props['ProductCode'],
             'msi_sha256': receipt['msi_sha256'], 'payload_sha256': actual,
-            'payload_hash_match': True, 'payload_files': ['nodeChad.exe'],
+            'payload_hash_match': True, 'payload_files': ['noteChad.exe'],
             'installer_executed': False, 'extraction': 'read-only MSI stream + SetupIterateCabinetW',
             'tables': tables}
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--msi', type=Path, default=ROOT / 'bin/nodeChad-Setup-x64.msi')
-    parser.add_argument('--exe', type=Path, default=ROOT / 'bin/nodeChad.exe')
+    parser.add_argument('--msi', type=Path, default=ROOT / 'bin/noteChad-Setup-x64.msi')
+    parser.add_argument('--exe', type=Path, default=ROOT / 'bin/noteChad.exe')
     parser.add_argument('--report', type=Path, help='Optional JSON report path, normally under bin/')
     args = parser.parse_args()
     result = verify(args.msi, args.exe)

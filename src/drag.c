@@ -4,7 +4,7 @@
 #include <wchar.h>
 
 #define DRAG_SUBCLASS ((UINT_PTR)0x4E434447)
-#define DRAG_PROPERTY L"NodeChad.TabDrag.Attached"
+#define DRAG_PROPERTY L"NoteChad.TabDrag.Attached"
 
 typedef struct {
     BOOL tracking, dragging;
@@ -35,7 +35,7 @@ static BOOL editor_frame(HWND frame)
     DWORD process = 0;
     LONG_PTR style, ex;
     GetWindowThreadProcessId(frame, &process);
-    if (process != GetCurrentProcessId() || !named(frame, L"NodeChad.Editor"))
+    if (process != GetCurrentProcessId() || !named(frame, L"NoteChad.Editor"))
         return FALSE;
     style = GetWindowLongPtrW(frame, GWL_STYLE);
     ex = GetWindowLongPtrW(frame, GWL_EXSTYLE);

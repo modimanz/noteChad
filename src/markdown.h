@@ -1,5 +1,5 @@
-#ifndef NODECHAD_MARKDOWN_H
-#define NODECHAD_MARKDOWN_H
+#ifndef NOTECHAD_MARKDOWN_H
+#define NOTECHAD_MARKDOWN_H
 #include <windows.h>
 #ifdef __cplusplus
 extern "C" {

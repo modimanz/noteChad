@@ -22,4 +22,4 @@ sizes = (16, 32, 48); images = [png(s) for s in sizes]; offset = 6 + len(sizes) 
 entries = []
 for s, image in zip(sizes, images):
     entries.append(struct.pack('<BBBBHHII',s,s,0,0,1,32,len(image),offset)); offset += len(image)
-(Path(__file__).resolve().parents[1] / 'src/nodechad.ico').write_bytes(struct.pack('<HHH',0,1,len(entries))+b''.join(entries+images))
+(Path(__file__).resolve().parents[1] / 'src/notechad.ico').write_bytes(struct.pack('<HHH',0,1,len(entries))+b''.join(entries+images))

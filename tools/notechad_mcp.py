@@ -60,8 +60,8 @@ class Bridge:
         if self.client is None:
             factory = self.factory
             if factory is None:
-                from nodechad_client import NodeChad
-                factory = NodeChad
+                from notechad_client import NoteChad
+                factory = NoteChad
             self.client = self.stack.enter_context(factory(self.exe, visible=self.visible))
         return self.client
 
@@ -178,7 +178,7 @@ def create_server(bridge):
             type='text', text=json.dumps(payload, ensure_ascii=False))])
 
     if hasattr(Server, 'call_tool'):
-        server = Server('nodechad', version='1.0.0')
+        server = Server('notechad', version='1.0.0')
 
         @server.list_tools()
         async def list_tools():
@@ -194,7 +194,7 @@ def create_server(bridge):
         async def call_tool(context, params):
             return await invoke(params.name, params.arguments)
 
-        server = Server('nodechad', version='1.0.0', on_list_tools=list_tools, on_call_tool=call_tool)
+        server = Server('notechad', version='1.0.0', on_list_tools=list_tools, on_call_tool=call_tool)
     return server
 
 
@@ -207,7 +207,7 @@ async def serve(bridge):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--exe', required=True, help='Absolute path to bin/nodeChad.exe')
+    parser.add_argument('--exe', required=True, help='Absolute path to bin/noteChad.exe')
     parser.add_argument('--allow-root', action='append', default=[], help='Existing directory allowed for load/save; repeatable. Default: no disk access.')
     parser.add_argument('--visible', action='store_true', help='Use --api-window; closing MCP leaves the visible editor open.')
     args = parser.parse_args(argv)

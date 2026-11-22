@@ -16,7 +16,7 @@ static WCHAR *copy(const WCHAR *text) {
     return p;
 }
 static LRESULT CALLBACK procedure(HWND window, UINT message, WPARAM wp, LPARAM lp) {
-    if (message == WM_NODECHAD_API) {
+    if (message == WM_NOTECHAD_API) {
         ApiRequest *r;
         if (!api_owns(lp)) return 0;
         r = (ApiRequest *)lp;
@@ -33,7 +33,7 @@ static LRESULT CALLBACK procedure(HWND window, UINT message, WPARAM wp, LPARAM l
         r->dirty = dirty;
         return 0;
     }
-    if (message == WM_NODECHAD_EOF) { DestroyWindow(window); return 0; }
+    if (message == WM_NOTECHAD_EOF) { DestroyWindow(window); return 0; }
     if (message == WM_DESTROY) { PostQuitMessage(0); return 0; }
     return DefWindowProcW(window, message, wp, lp);
 }
@@ -42,7 +42,7 @@ int main(void) {
     HWND owner;
     MSG message;
     gui_thread = GetCurrentThreadId();
-    wc.lpfnWndProc = procedure; wc.hInstance = GetModuleHandleW(NULL); wc.lpszClassName = L"NodeChadApiTest";
+    wc.lpfnWndProc = procedure; wc.hInstance = GetModuleHandleW(NULL); wc.lpszClassName = L"NoteChadApiTest";
     if (!RegisterClassW(&wc)) return 2;
     owner = CreateWindowW(wc.lpszClassName, L"", 0, 0, 0, 0, 0, HWND_MESSAGE, NULL, wc.hInstance, NULL);
     if (!owner || api_owns((LPARAM)1) || !api_start(owner)) return 3;

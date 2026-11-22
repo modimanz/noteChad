@@ -5,7 +5,7 @@
 #include <strsafe.h>
 #include <wchar.h>
 #include <string.h>
-#define ROUTE_CLASS L"NodeChad.Launch.v1"
+#define ROUTE_CLASS L"NoteChad.Launch.v1"
 #define ROUTE_COPY_ID 0x4e436831u
 #define ROUTE_DRAIN (WM_APP+51)
 #define MAX_FILES 64
@@ -71,7 +71,7 @@ done:LocalFree(data);return ok;
 int router_start(int argc,WCHAR **argv,RouterOpen cb){
     WCHAR self[1024],name[80];DWORD len=GetModuleFileNameW(NULL,self,ARRAYSIZE(self));if(!len || len>=ARRAYSIZE(self))return ROUTER_ERROR;
     DWORD hash=2166136261u;for(DWORD i=0;i<len;++i){WCHAR c=self[i];if(c>=L'A'&&c<=L'Z')c+=32;hash=(hash^c)*16777619u;}
-    StringCchPrintfW(name,ARRAYSIZE(name),L"Local\\nodeChad.GUI.v1.%08lX",hash);
+    StringCchPrintfW(name,ARRAYSIZE(name),L"Local\\noteChad.GUI.v1.%08lX",hash);
     lock=CreateMutexW(NULL,FALSE,name);if(!lock)return ROUTER_ERROR;
     DWORD got=WaitForSingleObject(lock,5000);if(got!=WAIT_OBJECT_0 && got!=WAIT_ABANDONED){CloseHandle(lock);lock=NULL;return ROUTER_ERROR;}
     int result=ROUTER_ERROR;

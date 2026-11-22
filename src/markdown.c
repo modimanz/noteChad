@@ -344,7 +344,7 @@ static BOOL md_open(HWND owner, HWND edit, BOOL preview) {
         if (!md_richedit) return FALSE;
     }
     ZeroMemory(&wc, sizeof(wc)); wc.lpfnWndProc = md_window_proc; wc.hInstance = instance;
-    wc.lpszClassName = L"NodeChad.Markdown"; wc.hCursor = LoadCursorW(NULL, IDC_ARROW);
+    wc.lpszClassName = L"NoteChad.Markdown"; wc.hCursor = LoadCursorW(NULL, IDC_ARROW);
     wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     if (!RegisterClassW(&wc) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) return FALSE;
     v = (MdView *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*v)); if (!v) return FALSE;

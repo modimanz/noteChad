@@ -1,17 +1,17 @@
-# nodeChad
+# noteChad
 
 A native Windows text and Markdown editor with draggable tabs, a local automation API, and opt-in AI completion. The editor is a single x64 executable. It does not replace Windows Notepad or change your default editor.
 
 ## Install or run portable
 
-[Download the Windows x64 installer](https://github.com/modimanz/noteChad/releases/latest/download/nodeChad-Setup-x64.msi). It installs for the current user, adds **nodeChad** to Start, and can be removed from **Settings → Apps → Installed apps**. The MSI is unsigned. For a portable copy, download `nodeChad.exe` from the same [release](https://github.com/modimanz/noteChad/releases/latest). Neither requires Python.
+[Download the Windows x64 installer](https://github.com/modimanz/noteChad/releases/latest/download/noteChad-Setup-x64.msi). It installs for the current user, adds **noteChad** to Start, and can be removed from **Settings → Apps → Installed apps**. The MSI is unsigned. For a portable copy, download `noteChad.exe` from the same [release](https://github.com/modimanz/noteChad/releases/latest). Neither requires Python.
 
 ## Try it from source
 
-[Build the editor](#build-and-test), then double-click `bin\nodeChad.exe` or open the supplied Markdown example:
+[Build the editor](#build-and-test), then double-click `bin\noteChad.exe` or open the supplied Markdown example:
 
 ```powershell
-.\bin\nodeChad.exe .\examples\field-notes.md
+.\bin\noteChad.exe .\examples\field-notes.md
 ```
 
 | Action | Shortcut |
@@ -27,7 +27,7 @@ A native Windows text and Markdown editor with draggable tabs, a local automatio
 | Reading preview | F6 |
 | Request a local completion after enabling it in **AI** | Ctrl+Space |
 
-Drag a tab onto another nodeChad window’s **tab strip** to move it, along its own strip to reorder it, or onto the desktop to give it a window of its own. The tab keeps its unsaved text, selection and undo history. Drop multiple files from Explorer to open them as tabs.
+Drag a tab onto another noteChad window’s **tab strip** to move it, along its own strip to reorder it, or onto the desktop to give it a window of its own. The tab keeps its unsaved text, selection and undo history. Drop multiple files from Explorer to open them as tabs.
 
 An asterisk marks a tab with unsaved edits. Closing a tab or window asks before discarding those edits. Word wrap is on by default; switching wrapping preserves text and selection but clears the native control’s undo history. Hermes-controlled windows stay single-document: tab gestures never redirect an agent to another document.
 

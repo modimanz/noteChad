@@ -6,7 +6,7 @@
 #define AI_CONTEXT 2048
 #define AI_OUTPUT 4096
 #define AI_BODY 65536
-#define AI_PROPERTY L"nodeChad.ai.request"
+#define AI_PROPERTY L"noteChad.ai.request"
 typedef struct AiWork {
     HWND owner, edit;
     unsigned long long revision, generation;
@@ -23,7 +23,7 @@ static volatile LONG ai_busy;
 static PVOID volatile ai_ready;
 static void ai_notice(HWND owner, const WCHAR *text)
 {
-    MessageBoxW(owner, text, L"nodeChad", MB_OK | MB_ICONINFORMATION);
+    MessageBoxW(owner, text, L"noteChad", MB_OK | MB_ICONINFORMATION);
 }
 BOOL ai_enabled(void) { return ai_on; }
 void ai_toggle(HWND owner)
@@ -253,7 +253,7 @@ static DWORD WINAPI ai_worker(void *arg)
         const char tail[] = ",\"system\":\"Continue the text at the caret. Return only the continuation, without repeating the prompt or adding explanations.\",\"stream\":false,\"options\":{\"num_predict\":128}}";
         CopyMemory(p, tail, sizeof(tail)); p += sizeof(tail) - 1;
     }
-    session = WinHttpOpen(L"nodeChad/1", WINHTTP_ACCESS_TYPE_NO_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    session = WinHttpOpen(L"noteChad/1", WINHTTP_ACCESS_TYPE_NO_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
     if (!session) goto failed;
     if (!WinHttpSetTimeouts(session, 2000, 2000, 5000, 15000)) goto failed;
     connection = WinHttpConnect(session, L"127.0.0.1", w->port, 0); if (!connection) goto failed;
@@ -264,7 +264,7 @@ static DWORD WINAPI ai_worker(void *arg)
         !WinHttpReceiveResponse(request, NULL) ||
         !WinHttpQueryHeaders(request, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &status, &size, WINHTTP_NO_HEADER_INDEX)) goto failed;
     if (status != 200) {
-        StringCchPrintfW(w->error, 512, L"Local Ollama returned HTTP %lu. Redirects are refused. For a missing model, choose an already installed model with NODECHAD_MODEL (check `ollama list`) and restart nodeChad. Nothing was inserted.", status); goto finish;
+        StringCchPrintfW(w->error, 512, L"Local Ollama returned HTTP %lu. Redirects are refused. For a missing model, choose an already installed model with NOTECHAD_MODEL (check `ollama list`) and restart noteChad. Nothing was inserted.", status); goto finish;
     }
     for (;;) {
         DWORD want = AI_BODY + 1 - used; if (want > 4096) want = 4096;
@@ -279,14 +279,14 @@ static DWORD WINAPI ai_worker(void *arg)
 failed:
     error = GetLastError(); if (!error) error = ERROR_INVALID_DATA;
 finish:
-    if (error) StringCchPrintfW(w->error, 512, L"Could not complete the local Ollama request (Windows error %lu). Check that Ollama is running locally and NODECHAD_MODEL names an installed model (`ollama list`). nodeChad never downloads or launches models. Nothing was inserted.", error);
+    if (error) StringCchPrintfW(w->error, 512, L"Could not complete the local Ollama request (Windows error %lu). Check that Ollama is running locally and NOTECHAD_MODEL names an installed model (`ollama list`). noteChad never downloads or launches models. Nothing was inserted.", error);
     if (request) WinHttpCloseHandle(request);
     if (connection) WinHttpCloseHandle(connection);
     if (session) WinHttpCloseHandle(session);
     if (payload) { SecureZeroMemory(payload, 16384); HeapFree(GetProcessHeap(), 0, payload); }
     if (body) { SecureZeroMemory(body, AI_BODY + 1); HeapFree(GetProcessHeap(), 0, body); }
     InterlockedExchangePointer(&ai_ready, w);
-    if (!PostMessageW(destination, WM_NODECHAD_AI, 0, (LPARAM)w)) {
+    if (!PostMessageW(destination, WM_NOTECHAD_AI, 0, (LPARAM)w)) {
         if (InterlockedCompareExchangePointer(&ai_ready, NULL, w) == w) {
             /* No UI calls from a worker during teardown. */
             SecureZeroMemory(w, sizeof(*w)); HeapFree(GetProcessHeap(), 0, w);
@@ -316,11 +316,11 @@ void ai_request(HWND owner, HWND edit, unsigned long long revision)
     if (a != b) { ai_notice(owner, L"Clear the selection and place the caret where you want to append a completion. Selected text is never replaced."); ai_free(w); return; }
     w->caret = a; w->length = GetWindowTextLengthW(edit);
     if (!ai_snapshot(edit, a, w->context)) { ai_notice(owner, L"Could not safely read the text before the caret. Move the caret to a complete character and try again."); ai_free(w); return; }
-    count = GetEnvironmentVariableW(L"NODECHAD_MODEL", w->model, 129);
+    count = GetEnvironmentVariableW(L"NOTECHAD_MODEL", w->model, 129);
     if (!count || count >= 129 || !ai_valid_text(w->model)) {
-        ai_notice(owner, L"Choose an already installed local Ollama model: run `ollama list`, set NODECHAD_MODEL to its exact name, then restart nodeChad. The model name must be at most 128 UTF-16 units. nodeChad never installs, downloads, or launches models."); ai_free(w); return;
+        ai_notice(owner, L"Choose an already installed local Ollama model: run `ollama list`, set NOTECHAD_MODEL to its exact name, then restart noteChad. The model name must be at most 128 UTF-16 units. noteChad never installs, downloads, or launches models."); ai_free(w); return;
     }
-    SetLastError(ERROR_SUCCESS); count = GetEnvironmentVariableW(L"NODECHAD_OLLAMA_PORT", port, 16);
+    SetLastError(ERROR_SUCCESS); count = GetEnvironmentVariableW(L"NOTECHAD_OLLAMA_PORT", port, 16);
     if (!count && GetLastError() == ERROR_ENVVAR_NOT_FOUND) w->port = 11434;
     else {
         if (!count || count >= 16) goto bad_port;
@@ -335,7 +335,7 @@ void ai_request(HWND owner, HWND edit, unsigned long long revision)
     if (!thread) { ai_notice(owner, L"Could not start the local completion worker."); ai_free(w); return; }
     CloseHandle(thread); return;
 bad_port:
-    ai_notice(owner, L"NODECHAD_OLLAMA_PORT must contain only digits and be between 1 and 65535. The host is always 127.0.0.1."); ai_free(w);
+    ai_notice(owner, L"NOTECHAD_OLLAMA_PORT must contain only digits and be between 1 and 65535. The host is always 127.0.0.1."); ai_free(w);
 }
 void ai_result(HWND owner, HWND edit, unsigned long long revision, LPARAM result)
 {
@@ -349,7 +349,7 @@ void ai_result(HWND owner, HWND edit, unsigned long long revision, LPARAM result
     }
     if (w->error[0]) { ai_notice(owner, w->error); ai_free(w); return; }
     StringCchPrintfW(preview, AI_OUTPUT + 256, L"Insert this suggestion at the unchanged caret?\r\n\r\n%s\r\n\r\nChoose Yes to insert. No (the default) leaves your document unchanged.", w->suggestion);
-    if (MessageBoxW(owner, preview, L"nodeChad - Review local AI suggestion", MB_YESNO | MB_DEFBUTTON2 | MB_ICONQUESTION) == IDYES) {
+    if (MessageBoxW(owner, preview, L"noteChad - Review local AI suggestion", MB_YESNO | MB_DEFBUTTON2 | MB_ICONQUESTION) == IDYES) {
         /* Owner is modal-disabled here: refuse API document edits while disabled,
            and supply the current revision to ai_result. */
         if (ai_still_current(w, owner, edit, revision)) {

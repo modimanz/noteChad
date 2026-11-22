@@ -1,6 +1,6 @@
-"""Dependency-free, synchronous client for one isolated nodeChad editor.
+"""Dependency-free, synchronous client for one isolated noteChad editor.
 
-Import NodeChad, launch with a context manager, and use request(). No shell,
+Import NoteChad, launch with a context manager, and use request(). No shell,
 network service, background polling, or implicit saving is involved.
 """
 from dataclasses import dataclass
@@ -23,11 +23,11 @@ class Response:
     text: str
 
 
-class NodeChadError(Exception):
+class NoteChadError(Exception):
     """Base for valid editor errors and broken transport errors."""
 
 
-class ApiError(NodeChadError):
+class ApiError(NoteChadError):
     """An ERR packet; the session remains usable for coordinator errors."""
     def __init__(self, response):
         self.response = response
@@ -37,11 +37,11 @@ class ApiError(NodeChadError):
         super().__init__(response.text)
 
 
-class ProtocolError(NodeChadError):
+class ProtocolError(NoteChadError):
     """Malformed/truncated response or failed pipe; do not retry a mutation blindly."""
 
 
-class NodeChad:
+class NoteChad:
     def __init__(self, exe, visible=False):
         self.exe = os.fspath(exe)
         if not self.exe or not isinstance(visible, bool):
@@ -53,7 +53,7 @@ class NodeChad:
 
     def __enter__(self):
         if self.process is not None or self._closed:
-            raise RuntimeError('a NodeChad instance may only be started once')
+            raise RuntimeError('a NoteChad instance may only be started once')
         self.process = subprocess.Popen(
             [self.exe, '--api-window' if self.visible else '--api'],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=False,
@@ -134,7 +134,7 @@ class NodeChad:
         header = '{} {} {} {} {}\n'.format(verb, rev, start, end, len(payload)).encode('ascii')
         with self._lock:
             if self.process is None or self._closed:
-                raise RuntimeError('enter the NodeChad context before making requests')
+                raise RuntimeError('enter the NoteChad context before making requests')
             try:
                 self.process.stdin.write(header)
                 self.process.stdin.write(payload)

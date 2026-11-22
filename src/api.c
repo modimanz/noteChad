@@ -35,17 +35,17 @@ static BOOL write_exact(const void *buffer, DWORD size) {
     return TRUE;
 }
 static BOOL reply(BOOL ok, unsigned long long revision, BOOL dirty, const WCHAR *text) {
-    char header[NODECHAD_API_MAX_HEADER];
+    char header[NOTECHAD_API_MAX_HEADER];
     char *bytes = NULL;
     SIZE_T length = 0;
     int count = 0, header_length;
     BOOL sent;
     if (text) {
-        while (length <= NODECHAD_API_MAX_BYTES && text[length]) ++length;
-        if (length > NODECHAD_API_MAX_BYTES) return FALSE;
+        while (length <= NOTECHAD_API_MAX_BYTES && text[length]) ++length;
+        if (length > NOTECHAD_API_MAX_BYTES) return FALSE;
         if (length) {
             count = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, text, (int)length, NULL, 0, NULL, NULL);
-            if (!count || count > (int)NODECHAD_API_MAX_BYTES) return FALSE;
+            if (!count || count > (int)NOTECHAD_API_MAX_BYTES) return FALSE;
             bytes = (char *)LocalAlloc(LMEM_FIXED, (SIZE_T)count);
             if (!bytes) return FALSE;
             if (!WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, text, (int)length, bytes, count, NULL, NULL)) {
@@ -82,7 +82,7 @@ static BOOL parse(char *header, ApiRequest *r, DWORD *size) {
     if (strcmp(r->verb, "read") && strcmp(r->verb, "write") && strcmp(r->verb, "edit") &&
         strcmp(r->verb, "save") && strcmp(r->verb, "load")) return FALSE;
     if (!number(&p, &r->rev, ' ') || !number(&p, &r->start, ' ') ||
-        !number(&p, &r->end, ' ') || !number(&p, &bytes, '\0') || bytes > NODECHAD_API_MAX_BYTES) return FALSE;
+        !number(&p, &r->end, ' ') || !number(&p, &bytes, '\0') || bytes > NOTECHAD_API_MAX_BYTES) return FALSE;
     if (!strcmp(r->verb, "read") && (r->rev || r->start || r->end || bytes)) return FALSE;
     if (strcmp(r->verb, "edit") && (r->start || r->end)) return FALSE;
     if (!strcmp(r->verb, "edit") && r->start > r->end) return FALSE;
@@ -100,7 +100,7 @@ static void transport_error(unsigned long long *current, BOOL *dirty, const WCHA
     status.payload = empty;
     status.current = *current; status.dirty = *dirty;
     InterlockedExchangePointer(&api_pending, &status);
-    SendMessageW(api_owner, WM_NODECHAD_API, 0, (LPARAM)&status);
+    SendMessageW(api_owner, WM_NOTECHAD_API, 0, (LPARAM)&status);
     if (!InterlockedExchangePointer(&api_pending, NULL)) {
         *current = status.current; *dirty = status.dirty;
     }
@@ -112,7 +112,7 @@ static unsigned int __stdcall worker(void *ignored) {
     BOOL dirty = FALSE;
     (void)ignored;
     for (;;) {
-        char header[NODECHAD_API_MAX_HEADER];
+        char header[NOTECHAD_API_MAX_HEADER];
         DWORD used = 0, size = 0;
         char ch, *utf8 = NULL;
         int wide_count;
@@ -162,7 +162,7 @@ static unsigned int __stdcall worker(void *ignored) {
         }
         r.current = current; r.dirty = dirty;
         InterlockedExchangePointer(&api_pending, &r);
-        SendMessageW(api_owner, WM_NODECHAD_API, 0, (LPARAM)&r);
+        SendMessageW(api_owner, WM_NOTECHAD_API, 0, (LPARAM)&r);
         if (InterlockedExchangePointer(&api_pending, NULL)) {
             r.ok = FALSE;
             error = L"editor did not claim request";
@@ -181,7 +181,7 @@ static unsigned int __stdcall worker(void *ignored) {
     }
     CloseHandle(api_input); CloseHandle(api_output);
     SetStdHandle(STD_INPUT_HANDLE, NULL); SetStdHandle(STD_OUTPUT_HANDLE, NULL);
-    PostMessageW(api_owner, WM_NODECHAD_EOF, 0, 0);
+    PostMessageW(api_owner, WM_NOTECHAD_EOF, 0, 0);
     return 0;
 }
 BOOL api_start(HWND owner) {

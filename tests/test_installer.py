@@ -14,15 +14,15 @@ class InstallerTests(unittest.TestCase):
     def test_builds_single_file_per_user_msi(self):
         script = ROOT / 'installer/build.py'
         self.assertTrue(script.is_file(), 'installer/build.py must build the MSI')
-        spec = importlib.util.spec_from_file_location('nodechad_installer', script)
+        spec = importlib.util.spec_from_file_location('notechad_installer', script)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         import msilib
         scratch = Path(os.environ['LOCALAPPDATA']) / 'hermes/cache/scratch'
         scratch.mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(prefix='nodechad-msi-', dir=scratch) as tmp:
+        with tempfile.TemporaryDirectory(prefix='notechad-msi-', dir=scratch) as tmp:
             output = Path(tmp) / 'setup.msi'
-            module.build(ROOT / 'bin/nodeChad.exe', output, '0.1.0')
+            module.build(ROOT / 'bin/noteChad.exe', output, '0.1.0')
             db = msilib.OpenDatabase(str(output), msilib.MSIDBOPEN_READONLY)
             def rows(sql):
                 view = db.OpenView(sql)
@@ -33,20 +33,24 @@ class InstallerTests(unittest.TestCase):
                 view.Close()
                 return result
             props = dict(rows('SELECT `Property`, `Value` FROM `Property`'))
+            self.assertEqual(props['ProductName'], 'noteChad')
+            self.assertEqual(props['UpgradeCode'], '{9A209231-AFB0-4614-AC71-DC87D9A96687}')
+            self.assertNotEqual(rows('SELECT `ComponentId` FROM `Component`')[0][0], '{33600F3D-40C1-43E4-A9DC-B55FA86233E7}', 'A renamed registry key path requires a new component GUID')
+            self.assertEqual(rows('SELECT `Name` FROM `Shortcut`'), [('noteChad',)])
             self.assertNotIn('ALLUSERS', props)
             self.assertEqual(props['ProductVersion'], '0.1.0')
-            self.assertEqual(rows('SELECT `FileName` FROM `File`'), [('NODECHAD.EXE|nodeChad.exe',)])
+            self.assertEqual(rows('SELECT `FileName` FROM `File`'), [('NOTECHAD.EXE|noteChad.exe',)])
             self.assertEqual(rows('SELECT `Root` FROM `Registry`'), [('1',)] * len(rows('SELECT `Registry` FROM `Registry`')))
             directories = rows('SELECT `Directory`, `Directory_Parent`, `DefaultDir` FROM `Directory`')
-            self.assertIn(('INSTALLDIR', 'ProgramsDir', 'nodeChad'), directories)
+            self.assertIn(('INSTALLDIR', 'ProgramsDir', 'noteChad'), directories)
             self.assertIn(('ProgramsDir', 'LocalAppDataFolder', 'Programs'), directories)
-            self.assertEqual(rows('SELECT `Directory_`, `Target` FROM `Shortcut`'), [('ProgramMenuFolder', '[#NodeChadExe]')])
+            self.assertEqual(rows('SELECT `Directory_`, `Target` FROM `Shortcut`'), [('ProgramMenuFolder', '[#NoteChadExe]')])
             self.assertEqual(db.GetSummaryInformation(0).GetProperty(7), b'x64;1033')
             self.assertEqual(db.GetSummaryInformation(0).GetProperty(15), 10)
             self.assertEqual(rows('SELECT `Action` FROM `CustomAction`'), [])
             self.assertIn(('RegisterProduct',), rows('SELECT `Action` FROM `InstallExecuteSequence`'))
             registry = rows('SELECT `Key`, `Name`, `Value` FROM `Registry`')
-            self.assertIn(('Software\\Classes\\Applications\\nodeChad.exe\\shell\\open\\command', '', '"[#NodeChadExe]" "%1"'), registry)
+            self.assertIn(('Software\\Classes\\Applications\\noteChad.exe\\shell\\open\\command', '', '"[#NoteChadExe]" "%1"'), registry)
             self.assertFalse(any('UserChoice' in key or (key.endswith(('.md', '.txt')) and not name) for key, name, value in registry))
             self.assertEqual(len(rows('SELECT `UpgradeCode` FROM `Upgrade`')), 2)
             orders = [order for action, condition, order in rows('SELECT * FROM `InstallExecuteSequence`')]
@@ -57,19 +61,19 @@ class InstallerTests(unittest.TestCase):
     def test_isolated_cabinet_extraction_matches_input(self):
         script = ROOT / 'installer/verify.py'
         self.assertTrue(script.is_file(), 'installer/verify.py must verify the embedded payload without installing')
-        spec = importlib.util.spec_from_file_location('nodechad_verify', script)
+        spec = importlib.util.spec_from_file_location('notechad_verify', script)
         verifier = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(verifier)
-        builder_spec = importlib.util.spec_from_file_location('nodechad_build', ROOT / 'installer/build.py')
+        builder_spec = importlib.util.spec_from_file_location('notechad_build', ROOT / 'installer/build.py')
         builder = importlib.util.module_from_spec(builder_spec)
         builder_spec.loader.exec_module(builder)
         scratch = Path(os.environ['LOCALAPPDATA']) / 'hermes/cache/scratch'
-        with tempfile.TemporaryDirectory(prefix='nodechad-extract-test-', dir=scratch) as tmp:
+        with tempfile.TemporaryDirectory(prefix='notechad-extract-test-', dir=scratch) as tmp:
             output = Path(tmp) / 'setup.msi'
-            builder.build(ROOT / 'bin/nodeChad.exe', output, '0.1.1')
-            result = verifier.verify(output, ROOT / 'bin/nodeChad.exe')
+            builder.build(ROOT / 'bin/noteChad.exe', output, '0.1.1')
+            result = verifier.verify(output, ROOT / 'bin/noteChad.exe')
             self.assertTrue(result['payload_hash_match'])
-            self.assertEqual(result['payload_files'], ['nodeChad.exe'])
+            self.assertEqual(result['payload_files'], ['noteChad.exe'])
             self.assertFalse(result['installer_executed'])
 
 

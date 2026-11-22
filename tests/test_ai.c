@@ -29,7 +29,7 @@ static LPARAM wait_result(void)
     ULONGLONG start = GetTickCount64();
     MSG msg;
     while (GetTickCount64() - start < 10000) {
-        if (PeekMessageW(&msg, owner, WM_NODECHAD_AI, WM_NODECHAD_AI, PM_REMOVE))
+        if (PeekMessageW(&msg, owner, WM_NOTECHAD_AI, WM_NOTECHAD_AI, PM_REMOVE))
             return msg.lParam;
         Sleep(5);
     }
@@ -50,7 +50,7 @@ static void unchanged(void)
 static LPARAM request(const WCHAR *model)
 {
     ULONGLONG start;
-    SetEnvironmentVariableW(L"NODECHAD_MODEL", model);
+    SetEnvironmentVariableW(L"NOTECHAD_MODEL", model);
     start = GetTickCount64();
     ai_request(owner, edit, 7);
     CHECK(GetTickCount64() - start < 250);
@@ -112,13 +112,13 @@ int main(void)
     reset_doc(); result = request(L"fixture-good"); preview_move_edit = edit; box_reply = IDYES; ai_result(owner, edit, 7, result); unchanged();
     reset_doc(); result = request(L"fixture-good"); EnableWindow(owner, FALSE); box_reply = IDYES; ai_result(owner, edit, 7, result); EnableWindow(owner, TRUE); unchanged();
     reset_doc();
-    SetEnvironmentVariableW(L"NODECHAD_MODEL", NULL);
+    SetEnvironmentVariableW(L"NOTECHAD_MODEL", NULL);
     before = box_count; ai_request(owner, edit, 7); CHECK(box_count > before);
-    SetEnvironmentVariableW(L"NODECHAD_MODEL", L"fixture-good");
-    { WCHAR port[32]; GetEnvironmentVariableW(L"NODECHAD_OLLAMA_PORT", port, 32);
-      SetEnvironmentVariableW(L"NODECHAD_OLLAMA_PORT", L"11434.evil");
+    SetEnvironmentVariableW(L"NOTECHAD_MODEL", L"fixture-good");
+    { WCHAR port[32]; GetEnvironmentVariableW(L"NOTECHAD_OLLAMA_PORT", port, 32);
+      SetEnvironmentVariableW(L"NOTECHAD_OLLAMA_PORT", L"11434.evil");
       before = box_count; ai_request(owner, edit, 7); CHECK(box_count > before);
-      SetEnvironmentVariableW(L"NODECHAD_OLLAMA_PORT", port); }
+      SetEnvironmentVariableW(L"NOTECHAD_OLLAMA_PORT", port); }
     SendMessageW(edit, EM_SETSEL, 0, 2);
     before = box_count; ai_request(owner, edit, 7); CHECK(box_count > before); unchanged();
     for (i = 0; i < sizeof(bad)/sizeof(bad[0]); ++i) {

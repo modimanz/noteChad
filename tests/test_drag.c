@@ -104,7 +104,7 @@ int main(int argc, char **argv)
     InitCommonControlsEx(&ic);
     wc.lpfnWndProc = frame_proc;
     wc.hInstance = GetModuleHandleW(NULL);
-    wc.lpszClassName = L"NodeChad.Editor";
+    wc.lpszClassName = L"NoteChad.Editor";
     CHECK(RegisterClassW(&wc) != 0);
     if (argc == 3) {
         MSG message;
@@ -242,7 +242,7 @@ int main(int argc, char **argv)
         HWND controlled, other;
         POINT target;
         int before = drops;
-        controlled = make_frame(L"NodeChad.Editor", 40, 320);
+        controlled = make_frame(L"NoteChad.Editor", 40, 320);
         other = make_strip(controlled);
         target = tab_point(other, 0);
         gesture(a, target);
@@ -280,7 +280,7 @@ int main(int argc, char **argv)
     }
     /* Attachment is legal during construction, before the frame is shown. */
     {
-        HWND hidden = make_frame(L"NodeChad.Editor", 40, 320);
+        HWND hidden = make_frame(L"NoteChad.Editor", 40, 320);
         HWND tabs;
         ShowWindow(hidden, SW_HIDE);
         tabs = make_strip(hidden);
@@ -298,7 +298,7 @@ int main(int argc, char **argv)
         int before = drops;
         startup.cb = sizeof(startup);
         GetModuleFileNameW(NULL, image, ARRAYSIZE(image));
-        swprintf_s(event_name, ARRAYSIZE(event_name), L"Local\\NodeChad.DragFixture.%lu", GetCurrentProcessId());
+        swprintf_s(event_name, ARRAYSIZE(event_name), L"Local\\NoteChad.DragFixture.%lu", GetCurrentProcessId());
         ready = CreateEventW(NULL, TRUE, FALSE, event_name);
         CHECK(ready != NULL);
         swprintf_s(command, ARRAYSIZE(command), L"\"%s\" --foreign %s", image, event_name);

@@ -13,7 +13,7 @@ class TransportTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         SCRATCH.mkdir(parents=True, exist_ok=True)
-        cls.work = tempfile.TemporaryDirectory(prefix='nodechad-api-', dir=SCRATCH)
+        cls.work = tempfile.TemporaryDirectory(prefix='notechad-api-', dir=SCRATCH)
         cls.addClassCleanup(cls.work.cleanup)
         cls.exe = Path(cls.work.name) / 'transport fixture.exe'
         vswhere = Path(os.environ['ProgramFiles(x86)']) / 'Microsoft Visual Studio/Installer/vswhere.exe'
@@ -91,13 +91,13 @@ class TransportTests(unittest.TestCase):
     def test_python_client_interface_and_structured_conflict(self):
         import importlib.util
         import sys
-        path = ROOT / 'tools/nodechad_client.py'
+        path = ROOT / 'tools/notechad_client.py'
         self.assertTrue(path.is_file(), 'Python client is missing')
-        spec = importlib.util.spec_from_file_location('nodechad_client', path)
+        spec = importlib.util.spec_from_file_location('notechad_client', path)
         module = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = module
         spec.loader.exec_module(module)
-        with module.NodeChad(self.exe, visible=False) as nc:
+        with module.NoteChad(self.exe, visible=False) as nc:
             initial = nc.request('read')
             self.assertEqual((initial.revision, initial.dirty, initial.text), (1, False, ''))
             written = nc.request('write', rev=initial.revision, text='hello\n世界 😀')

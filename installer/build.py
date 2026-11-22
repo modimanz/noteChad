@@ -21,7 +21,9 @@ except ImportError as exc:
 
 ROOT = Path(__file__).resolve().parents[1]
 UPGRADE_CODE = '{9A209231-AFB0-4614-AC71-DC87D9A96687}'
-COMPONENT_CODE = '{33600F3D-40C1-43E4-A9DC-B55FA86233E7}'
+# The registry key path and installed file moved in 0.1.1. Keep the upgrade
+# family above, but give these renamed resources their own component identity.
+COMPONENT_CODE = '{D8779F83-6C65-5875-90A6-1132CE1F2948}'
 NAMESPACE = uuid.UUID(UPGRADE_CODE.strip('{}'))
 
 
@@ -43,11 +45,11 @@ def build(executable, output, version):
     if output.suffix.lower() != '.msi' or output == executable:
         raise ValueError('Output must be an .msi file, not the input')
     output.parent.mkdir(parents=True, exist_ok=True)
-    product_code = '{' + str(uuid.uuid5(NAMESPACE, 'nodeChad-x64-' + version)).upper() + '}'
+    product_code = '{' + str(uuid.uuid5(NAMESPACE, 'noteChad-x64-' + version)).upper() + '}'
     # Build in an owned child directory; publish the complete package only on success.
-    with tempfile.TemporaryDirectory(prefix='nodechad-package-', dir=output.parent) as tmp:
+    with tempfile.TemporaryDirectory(prefix='notechad-package-', dir=output.parent) as tmp:
         candidate = Path(tmp) / output.name
-        db = msilib.init_database(str(candidate), schema, 'nodeChad', product_code, version, 'nodeChad')
+        db = msilib.init_database(str(candidate), schema, 'noteChad', product_code, version, 'noteChad')
         add = lambda table, rows: msilib.add_data(db, table, rows)
         summary = db.GetSummaryInformation(20)
         summary.SetProperty(msilib.PID_TEMPLATE, 'x64;1033')
@@ -56,7 +58,7 @@ def build(executable, output, version):
         summary.Persist()
         add('Property', [
             ('UpgradeCode', UPGRADE_CODE), ('INSTALLLEVEL', '1'),
-            ('ARPCOMMENTS', 'Per-user nodeChad editor. Unsigned package.'),
+            ('ARPCOMMENTS', 'Per-user noteChad editor. Unsigned package.'),
             ('ARPNOMODIFY', '1'),
             ('SecureCustomProperties', 'OLDPRODUCTS;NEWERPRODUCTFOUND'),
         ])
@@ -64,14 +66,14 @@ def build(executable, output, version):
             ('TARGETDIR', None, 'SourceDir'),
             ('LocalAppDataFolder', 'TARGETDIR', '.'),
             ('ProgramsDir', 'LocalAppDataFolder', 'Programs'),
-            ('INSTALLDIR', 'ProgramsDir', 'nodeChad'),
+            ('INSTALLDIR', 'ProgramsDir', 'noteChad'),
             ('ProgramMenuFolder', 'TARGETDIR', '.'),
         ])
-        add('Feature', [('Editor', None, 'nodeChad', 'nodeChad editor', 1, 1, 'INSTALLDIR', 0)])
+        add('Feature', [('Editor', None, 'noteChad', 'noteChad editor', 1, 1, 'INSTALLDIR', 0)])
         # HKCU key path is required for a component that contains per-user resources.
         add('Component', [('EditorComponent', COMPONENT_CODE, 'INSTALLDIR', 260, None, 'InstallMarker')])
         add('FeatureComponents', [('Editor', 'EditorComponent')])
-        add('File', [('NodeChadExe', 'EditorComponent', 'NODECHAD.EXE|nodeChad.exe', len(image), None, None, 512, 1)])
+        add('File', [('NoteChadExe', 'EditorComponent', 'NOTECHAD.EXE|noteChad.exe', len(image), None, None, 512, 1)])
         import ctypes
         class FileHash(ctypes.Structure):
             _fields_ = [('size', ctypes.c_uint32), ('parts', ctypes.c_int32 * 4)]
@@ -80,25 +82,25 @@ def build(executable, output, version):
         result = ctypes.windll.msi.MsiGetFileHashW(str(executable), 0, ctypes.byref(filehash))
         if result:
             raise OSError(result, 'MsiGetFileHashW failed')
-        add('MsiFileHash', [('NodeChadExe', 0, *filehash.parts)])
-        app = r'Software\Classes\Applications\nodeChad.exe'
+        add('MsiFileHash', [('NoteChadExe', 0, *filehash.parts)])
+        app = r'Software\Classes\Applications\noteChad.exe'
         add('Registry', [
-            ('InstallMarker', 1, r'Software\nodeChad\Installer', 'InstallPath', '[INSTALLDIR]', 'EditorComponent'),
-            ('FriendlyName', 1, app, 'FriendlyAppName', 'nodeChad', 'EditorComponent'),
-            ('OpenCommand', 1, app + r'\shell\open\command', '', '"[#NodeChadExe]" "%1"', 'EditorComponent'),
+            ('InstallMarker', 1, r'Software\noteChad\Installer', 'InstallPath', '[INSTALLDIR]', 'EditorComponent'),
+            ('FriendlyName', 1, app, 'FriendlyAppName', 'noteChad', 'EditorComponent'),
+            ('OpenCommand', 1, app + r'\shell\open\command', '', '"[#NoteChadExe]" "%1"', 'EditorComponent'),
             ('SupportedMD', 1, app + r'\SupportedTypes', '.md', '', 'EditorComponent'),
             ('SupportedTXT', 1, app + r'\SupportedTypes', '.txt', '', 'EditorComponent'),
         ])
-        add('Shortcut', [('StartMenu', 'ProgramMenuFolder', 'nodeChad', 'EditorComponent', '[#NodeChadExe]', None,
-                          'nodeChad editor', None, None, None, 1, 'INSTALLDIR')])
+        add('Shortcut', [('StartMenu', 'ProgramMenuFolder', 'noteChad', 'EditorComponent', '[#NoteChadExe]', None,
+                          'noteChad editor', None, None, None, 1, 'INSTALLDIR')])
         add('Upgrade', [
             (UPGRADE_CODE, None, version, None, 1, None, 'OLDPRODUCTS'),
             (UPGRADE_CODE, version, None, None, 258, None, 'NEWERPRODUCTFOUND'),
         ])
         add('LaunchCondition', [
-            ('NOT ALLUSERS', 'nodeChad supports current-user installation only. Do not set ALLUSERS.'),
-            ('VersionNT64', 'nodeChad requires 64-bit Windows.'),
-            ('Installed OR NOT NEWERPRODUCTFOUND', 'A newer nodeChad version is already installed. Uninstall it first to downgrade.'),
+            ('NOT ALLUSERS', 'noteChad supports current-user installation only. Do not set ALLUSERS.'),
+            ('VersionNT64', 'noteChad requires 64-bit Windows.'),
+            ('Installed OR NOT NEWERPRODUCTFOUND', 'A newer noteChad version is already installed. Uninstall it first to downgrade.'),
         ])
         # No executable custom actions, machine registration, services or shell commands.
         execute = [(action, condition, 25 if action == 'FindRelatedProducts' else 1510 if action == 'RemoveExistingProducts' else order)
@@ -109,15 +111,15 @@ def build(executable, output, version):
         add('AdminExecuteSequence', sequence.AdminExecuteSequence)
         add('AdminUISequence', sequence.AdminUISequence)
         cabfile = Path(tmp) / 'payload.cab'
-        msilib.FCICreate(str(cabfile), [(str(executable), 'NodeChadExe')])
+        msilib.FCICreate(str(cabfile), [(str(executable), 'NoteChadExe')])
         add('Media', [(1, 1, None, '#payload.cab', None, None)])
         msilib.add_stream(db, 'payload.cab', str(cabfile))
         db.Commit()
         del summary, db
         candidate.replace(output)
-    receipt = {'product': 'nodeChad', 'version': version, 'product_code': product_code,
+    receipt = {'product': 'noteChad', 'version': version, 'product_code': product_code,
                'upgrade_code': UPGRADE_CODE, 'signed': False, 'scope': 'current-user',
-               'payload': 'nodeChad.exe', 'payload_sha256': hashlib.sha256(image).hexdigest(),
+               'payload': 'noteChad.exe', 'payload_sha256': hashlib.sha256(image).hexdigest(),
                'msi_sha256': hashlib.sha256(output.read_bytes()).hexdigest()}
     output.with_suffix('.msi.json').write_text(json.dumps(receipt, indent=2) + '\n', encoding='utf-8')
     return receipt
@@ -126,7 +128,7 @@ def build(executable, output, version):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--version', required=True, help='MSI major.minor.build; increment for every release')
-    parser.add_argument('--exe', type=Path, default=ROOT / 'bin/nodeChad.exe')
-    parser.add_argument('--output', type=Path, default=ROOT / 'bin/nodeChad-Setup-x64.msi')
+    parser.add_argument('--exe', type=Path, default=ROOT / 'bin/noteChad.exe')
+    parser.add_argument('--output', type=Path, default=ROOT / 'bin/noteChad-Setup-x64.msi')
     args = parser.parse_args()
     print(json.dumps(build(args.exe, args.output, args.version), indent=2))

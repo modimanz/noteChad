@@ -7,7 +7,7 @@
 int main(void){
     instance=GetModuleHandleW(NULL);SetProcessDPIAware();
     INITCOMMONCONTROLSEX common={sizeof(common),ICC_TAB_CLASSES};InitCommonControlsEx(&common);
-    WNDCLASSW wc={0};wc.lpfnWndProc=window_proc;wc.hInstance=instance;wc.lpszClassName=L"NodeChad.Editor";
+    WNDCLASSW wc={0};wc.lpfnWndProc=window_proc;wc.hInstance=instance;wc.lpszClassName=L"NoteChad.Editor";
     wc.hCursor=LoadCursorW(NULL,IDC_ARROW);CHECK(RegisterClassW(&wc));
     findmsg=RegisterWindowMessageW(FINDMSGSTRINGW);
     Frame *a=create_frame(FALSE,FALSE,TRUE),*b=create_frame(FALSE,FALSE,TRUE),*api=create_frame(TRUE,TRUE,TRUE);

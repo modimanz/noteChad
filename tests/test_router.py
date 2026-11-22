@@ -10,14 +10,14 @@ import time
 import unittest
 
 ROOT=Path(__file__).resolve().parents[1]
-EXE=Path(os.environ.get('NODECHAD_TEST_EXE',ROOT/'bin/nodeChad.exe')).resolve()
+EXE=Path(os.environ.get('NOTECHAD_TEST_EXE',ROOT/'bin/noteChad.exe')).resolve()
 u=c.windll.user32
 u.FindWindowExW.argtypes=[w.HWND,w.HWND,w.LPCWSTR,w.LPCWSTR]; u.FindWindowExW.restype=w.HWND
 
 def frames(pid):
     prev=None; out=[]
     while True:
-        h=u.FindWindowExW(None,prev,'NodeChad.Editor',None)
+        h=u.FindWindowExW(None,prev,'NoteChad.Editor',None)
         if not h: return out
         p=w.DWORD(); u.GetWindowThreadProcessId(w.HWND(h),c.byref(p)); prev=h
         if p.value==pid and u.IsWindowVisible(w.HWND(h)): out.append(h)

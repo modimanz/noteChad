@@ -7,8 +7,8 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
-from nodechad_mcp import Bridge
-from test_mcp_surrogate import NodeChad
+from notechad_mcp import Bridge
+from test_mcp_surrogate import NoteChad
 
 SCRATCH = Path(os.environ.get('TMPDIR', str(Path.home() / 'AppData/Local/hermes/cache/scratch')))
 
@@ -16,12 +16,12 @@ SCRATCH = Path(os.environ.get('TMPDIR', str(Path.home() / 'AppData/Local/hermes/
 class BridgeTests(unittest.TestCase):
     def setUp(self):
         SCRATCH.mkdir(parents=True, exist_ok=True)
-        directory = tempfile.TemporaryDirectory(prefix='nodechad-mcp-policy-', dir=SCRATCH)
+        directory = tempfile.TemporaryDirectory(prefix='notechad-mcp-policy-', dir=SCRATCH)
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name)
 
     def bridge(self, **kwargs):
-        bridge = Bridge(self.root / 'synthetic.exe', client_factory=NodeChad, **kwargs)
+        bridge = Bridge(self.root / 'synthetic.exe', client_factory=NoteChad, **kwargs)
         self.addCleanup(bridge.close)
         return bridge
 
@@ -75,7 +75,7 @@ class BridgeTests(unittest.TestCase):
 
     def test_symlink_escape_is_rejected(self):
         bridge = self.bridge(allow_roots=[self.root])
-        outside = tempfile.TemporaryDirectory(prefix='nodechad-mcp-outside-', dir=SCRATCH)
+        outside = tempfile.TemporaryDirectory(prefix='notechad-mcp-outside-', dir=SCRATCH)
         self.addCleanup(outside.cleanup)
         alias = self.root / 'escape'
         try:

@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-VCVARS = Path(os.environ.get('NODECHAD_VCVARS', r'C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat'))
+VCVARS = Path(os.environ.get('NOTECHAD_VCVARS', r'C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat'))
 
 class AITests(unittest.TestCase):
     def test_native_ai_md(self):
@@ -17,7 +17,7 @@ class AITests(unittest.TestCase):
 
     def _native_ai(self, crt):
         self.assertTrue((ROOT / 'src/ai.c').is_file(), 'AI implementation is missing')
-        with tempfile.TemporaryDirectory(prefix='nodechad-ai-', dir=os.environ.get('TMPDIR')) as work:
+        with tempfile.TemporaryDirectory(prefix='notechad-ai-', dir=os.environ.get('TMPDIR')) as work:
             exe = Path(work) / 'test_ai.exe'
             flags = f'/nologo /W4 /WX /O1 /{crt} /TC /DUNICODE /D_UNICODE'
             command = f'call "{VCVARS}" >nul && cl {flags} /c /Fo:"{Path(work) / "ai.obj"}" "{ROOT / "src/ai.c"}" && cl {flags} /Fe:"{exe}" /Fo:"{Path(work) / "test_ai.obj"}" "{ROOT / "tests/test_ai.c"}" /link user32.lib winhttp.lib'
@@ -61,7 +61,7 @@ class AITests(unittest.TestCase):
             thread = threading.Thread(target=server.serve_forever)
             thread.start()
             env = os.environ.copy()
-            env['NODECHAD_OLLAMA_PORT'] = str(server.server_port)
+            env['NOTECHAD_OLLAMA_PORT'] = str(server.server_port)
             try:
                 run = subprocess.run([str(exe)], env=env, capture_output=True, text=True, timeout=30)
             finally:

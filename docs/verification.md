@@ -1,6 +1,6 @@
 # Windows x64 verification
 
-`bin/nodeChad.exe` and the optional `bin/nodeChad-asm.exe` both measured **89,600 bytes (87.5 KiB)** in the tested MSVC x64 builds. Replacing the C offset routine with the MASM version did not reduce the final PE size. The comparison is for this routine, not a claim about a hypothetical all-assembly editor.
+`bin/noteChad.exe` and the optional `bin/noteChad-asm.exe` both measured **89,600 bytes (87.5 KiB)** in the tested MSVC x64 builds. Replacing the C offset routine with the MASM version did not reduce the final PE size. The comparison is for this routine, not a claim about a hypothetical all-assembly editor.
 
 `dumpbin /dependents` showed Windows OS and Universal CRT imports, with `WINHTTP.dll` delay-loaded. No model, browser runtime or Python interpreter is part of the editor executable.
 
@@ -19,10 +19,10 @@
 Run the MCP check in PowerShell from the project root with the optional `mcp` package installed:
 
 ```powershell
-$env:NODECHAD_MCP_EXE = (Resolve-Path .\bin\nodeChad.exe).Path
+$env:NOTECHAD_MCP_EXE = (Resolve-Path .\bin\noteChad.exe).Path
 python -m unittest discover -s tests -p 'test_mcp*.py' -v
 ```
 
-The v0.1.0 MSI was also installed for a Windows user. Windows Installer reported the product installed at version `0.1.0`; the installed executable matched the release SHA-256, and the Start shortcut pointed to that executable. The five tab tests and four editor/API tests passed against the installed copy. Upgrade, uninstall and Explorer's app picker were not exercised live.
+The v0.1.0 MSI was also installed for a Windows user. Windows Installer reported the product installed at version `0.1.0`; the installed executable matched the release SHA-256, and the Start shortcut pointed to that executable. The five tab tests and four editor/API tests passed against the installed copy. The subsequent upgrade to v0.1.1 was exercised on the same account: the previous MSI registration, shortcut, installed executable and Open With command were removed. The new shortcut pointed to `noteChad.exe`, its SHA-256 matched the build receipt, and its live window caption ended in **noteChad**. Standalone uninstall and Explorer’s app picker were not exercised live.
 
 **Scope:** Windows x64, local filesystem. Markdown preview renders a subset, not all of CommonMark. This is a note editor, not a large-file editor: files are capped at 8 MiB and very long lines can be slow. AI model output quality, other CPU architectures, power-failure durability and hostile concurrent writers were not tested.

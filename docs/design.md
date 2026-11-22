@@ -14,7 +14,7 @@ We considered two existing open-source implementations rather than assuming Note
 ```powershell
 .\build.cmd
 .\build.cmd asm
-Get-Item .\bin\nodeChad*.exe | Select-Object Name,Length
+Get-Item .\bin\noteChad*.exe | Select-Object Name,Length
 ```
 
 ## Sources

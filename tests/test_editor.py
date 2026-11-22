@@ -9,7 +9,7 @@ import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-EXE = Path(os.environ.get('NODECHAD_TEST_EXE', ROOT / 'bin/nodeChad.exe')).resolve()
+EXE = Path(os.environ.get('NOTECHAD_TEST_EXE', ROOT / 'bin/noteChad.exe')).resolve()
 u = c.windll.user32
 u.FindWindowExW.argtypes = [w.HWND, w.HWND, w.LPCWSTR, w.LPCWSTR]
 u.FindWindowExW.restype = w.HWND
@@ -18,7 +18,7 @@ u.SendMessageW.restype = c.c_ssize_t
 
 class EditorTests(unittest.TestCase):
     def setUp(self):
-        self.assertTrue(EXE.is_file(), 'compile bin/nodeChad.exe first')
+        self.assertTrue(EXE.is_file(), 'compile bin/noteChad.exe first')
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
@@ -43,7 +43,7 @@ class EditorTests(unittest.TestCase):
         while time.monotonic()<deadline and not hwnd:
             prior=None
             while True:
-                h=u.FindWindowExW(None,prior,'NodeChad.Editor',None)
+                h=u.FindWindowExW(None,prior,'NoteChad.Editor',None)
                 if not h: break
                 pid=w.DWORD(); u.GetWindowThreadProcessId(w.HWND(h),c.byref(pid)); prior=h
                 if pid.value==p.pid and bool(u.IsWindowVisible(w.HWND(h)))==visible: hwnd=h; break
@@ -51,6 +51,12 @@ class EditorTests(unittest.TestCase):
         self.assertTrue(hwnd,'editor did not launch'); self.assertEqual(bool(u.IsWindowVisible(w.HWND(hwnd))),visible)
         edit=u.FindWindowExW(hwnd,None,'Edit',None); self.assertTrue(edit)
         return hwnd,edit
+
+    def test_window_shows_exact_product_name(self):
+        p = self.launch('--standalone'); hwnd, _ = self.editor(p)
+        caption = c.create_unicode_buffer(256)
+        u.GetWindowTextW(w.HWND(hwnd), caption, len(caption))
+        self.assertTrue(caption.value.endswith('noteChad'), caption.value)
 
     def test_hermes_workflow_and_conflict(self):
         src=self.root/'first note.md'; src.write_bytes('# Café\ncat🐈 jumps\n'.encode())

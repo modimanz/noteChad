@@ -1,11 +1,11 @@
-# nodeChad tools for Hermes
+# noteChad tools for Hermes
 
 Run the optional Python stdio MCP bridge to expose `read`, `write`, `edit`, `save`, and `load` as actual Hermes tools. Python and the MCP SDK belong to the bridge process only; they are not linked, embedded, or required by the standalone GUI.
 
 ## Requirements
 
-- A built `bin/nodeChad.exe` supporting `--api` and `--api-window`.
-- `tools/nodechad_mcp.py` and its sibling `tools/nodechad_client.py` from the same checkout.
+- A built `bin/noteChad.exe` supporting `--api` and `--api-window`.
+- `tools/notechad_mcp.py` and its sibling `tools/notechad_client.py` from the same checkout.
 - Python with the optional official `mcp` package. Both SDK 1.30.0 and 2.0.0 have been exercised with the synthetic-app tests below.
 - Hermes with the official `hermes mcp add` command.
 
@@ -36,7 +36,7 @@ The commands below use Bash, including Git Bash on Windows. Replace the example 
    REPO='C:/path/to/note_chad'
    BRIDGE_PY='C:/path/to/python.exe'
    cd "$REPO"
-   "$BRIDGE_PY" tools/nodechad_mcp.py --help
+   "$BRIDGE_PY" tools/notechad_mcp.py --help
    "$BRIDGE_PY" -m unittest discover -s tests -p 'test_mcp*.py' -v
    ```
 
@@ -49,25 +49,25 @@ The commands below use Bash, including Git Bash on Windows. Replace the example 
 4. Register an in-memory-only server. This command changes the active Hermes profile, so run it only when you want that registration:
 
    ```bash
-   hermes mcp add nodechad --command "$BRIDGE_PY" --connect-timeout 30 --args "$REPO/tools/nodechad_mcp.py" --exe "$REPO/bin/nodeChad.exe"
-   hermes mcp test nodechad
+   hermes mcp add notechad --command "$BRIDGE_PY" --connect-timeout 30 --args "$REPO/tools/notechad_mcp.py" --exe "$REPO/bin/noteChad.exe"
+   hermes mcp test notechad
    ```
 
    To enable file operations instead, create a dedicated directory and add `--allow-root` to the bridge arguments when registering. For example, use the following **instead of** the add command above:
 
    ```bash
    mkdir -p "$REPO/sandbox"
-   hermes mcp add nodechad --command "$BRIDGE_PY" --connect-timeout 30 --args "$REPO/tools/nodechad_mcp.py" --exe "$REPO/bin/nodeChad.exe" --allow-root "$REPO/sandbox"
+   hermes mcp add notechad --command "$BRIDGE_PY" --connect-timeout 30 --args "$REPO/tools/notechad_mcp.py" --exe "$REPO/bin/noteChad.exe" --allow-root "$REPO/sandbox"
    ```
 
    Repeat `--allow-root` to permit multiple existing directories. Do not allow a broad home directory merely for convenience. No environment-variable inheritance or working-directory assumptions are needed: the interpreter, server script, executable, and allowed roots are explicit absolute paths.
 
-5. Start a new Hermes conversation or use `/reload-mcp` to refresh discovery. Hermes prefixes these tools as `mcp_nodechad_read`, `mcp_nodechad_write`, and so forth. A connection/discovery test is not a provider inference test.
+5. Start a new Hermes conversation or use `/reload-mcp` to refresh discovery. Hermes prefixes these tools as `mcp_notechad_read`, `mcp_notechad_write`, and so forth. A connection/discovery test is not a provider inference test.
 
    Remove the registration when it is no longer needed:
 
    ```bash
-   hermes mcp remove nodechad
+   hermes mcp remove notechad
    ```
 
 See the [official Hermes MCP documentation](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp). CLI instructions above were checked against `hermes mcp add --help`, `hermes mcp test --help`, and `hermes mcp remove --help`. The test suite does not change your registration.
@@ -110,10 +110,10 @@ After building the native executable, run the same real MCP initialization, disc
 
 ```bash
 cd "$REPO"
-NODECHAD_MCP_EXE="$REPO/bin/nodeChad.exe" "$BRIDGE_PY" -m unittest discover -s tests -p 'test_mcp.py' -v
+NOTECHAD_MCP_EXE="$REPO/bin/noteChad.exe" "$BRIDGE_PY" -m unittest discover -s tests -p 'test_mcp.py' -v
 ```
 
-The opt-in path must exist or the suite fails. Native integration uses hidden mode and only test-created temporary documents and allowed roots. Without `NODECHAD_MCP_EXE`, `test_mcp.py` injects a test-only agreed-interface adapter and launches `tests/test_mcp_surrogate.py --app`; this exercises MCP and the bridge over real subprocess pipes but **does not qualify the production native client or GUI**. `test_mcp_bridge.py` checks bridge lifecycle and policy without requiring the SDK.
+The opt-in path must exist or the suite fails. Native integration uses hidden mode and only test-created temporary documents and allowed roots. Without `NOTECHAD_MCP_EXE`, `test_mcp.py` injects a test-only agreed-interface adapter and launches `tests/test_mcp_surrogate.py --app`; this exercises MCP and the bridge over real subprocess pipes but **does not qualify the production native client or GUI**. `test_mcp_bridge.py` checks bridge lifecycle and policy without requiring the SDK.
 
 For an independent optional SDK 1.x compatibility run:
 
@@ -125,7 +125,7 @@ These tests make no model/provider requests, do not claim an end-to-end inferenc
 
 ### Qualification
 
-The final suite passed 10 tests with the synthetic app under SDK 2.0.0 and 10 under SDK 1.30.0. The explicit native integration command also passed all 5 MCP transport cases under each SDK against the available `bin/nodeChad.exe` and production `nodechad_client.py`. With site packages disabled, all 5 dependency-free policy tests passed and all 5 SDK transport cases were explicitly skipped. These receipts qualify initialization/discovery and the exercised tool paths, not Hermes registration or provider inference.
+The final suite passed 10 tests with the synthetic app under SDK 2.0.0 and 10 under SDK 1.30.0. The explicit native integration command also passed all 5 MCP transport cases under each SDK against the available `bin/noteChad.exe` and production `notechad_client.py`. With site packages disabled, all 5 dependency-free policy tests passed and all 5 SDK transport cases were explicitly skipped. These receipts qualify initialization/discovery and the exercised tool paths, not Hermes registration or provider inference.
 
 An exploratory 16,010-emoji single-line write exceeded the test's 15-second call deadline. The bounded-pagination test uses the same code-point count split over short lines and passes natively. Very long single-line rendering remains a native performance concern; the bridge does not retry a timed-out mutation. Saved files may use native CRLF formatting even though API reads normalize to LF.
 
@@ -133,7 +133,7 @@ An exploratory 16,010-emoji single-line write exceeded the test's 15-second call
 
 - **Optional MCP SDK missing:** choose an interpreter where `import mcp` succeeds, or install into the separate bridge venv. `--help` and bridge policy tests do not require the SDK.
 - **Tools discover but first read fails:** initialization is deliberately lazy. Check the executable exists, supports `--api`, and has its runtime files available. Do not mistake successful discovery for successful editor launch.
-- **Tools do not appear in Hermes:** run `hermes mcp test nodechad`, check the active profile and absolute command paths, then use `/reload-mcp` or start a new conversation. Never hand-edit a live config to guess at registration syntax.
+- **Tools do not appear in Hermes:** run `hermes mcp test notechad`, check the active profile and absolute command paths, then use `/reload-mcp` or start a new conversation. Never hand-edit a live config to guess at registration syntax.
 - **Disk access disabled/outside allowed roots:** configure the intended dedicated directory using `--allow-root`; supply an absolute path inside it. Do not weaken the default merely to suppress an error.
 - **Dirty-buffer load refused:** save the buffer first, using another allowed file if necessary to preserve the file you intend to load.
 - **Stale revision or unknown outcome:** read/reconcile; never blindly retry. For a latched transport error, restart the bridge only after accounting for possible disk effects and unsaved text.

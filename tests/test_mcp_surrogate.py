@@ -12,7 +12,7 @@ class AppError(RuntimeError):
         self.revision, self.dirty, self.text = response.revision, response.dirty, response.text
 
 
-class NodeChad:
+class NoteChad:
     """Test-only adapter: a Python wire surrogate, never a real user editor."""
     def __init__(self, exe, visible=False):
         self.process = None

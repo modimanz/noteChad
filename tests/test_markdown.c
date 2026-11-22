@@ -47,14 +47,14 @@ static void test_native_views(void) {
     HWND view, child; DWORD a, b; WCHAR rendered[1024]; CHARFORMAT2W cf;
     SetWindowTextW(edit, doc); SendMessageW(edit, EM_SETMODIFY, FALSE, 0); SendMessageW(edit, EM_SETSEL, 2, 4);
     assert(md_command(owner, edit, MD_HEADING_NAVIGATION));
-    view = FindWindowW(L"NodeChad.Markdown", L"Markdown headings"); assert(view);
+    view = FindWindowW(L"NoteChad.Markdown", L"Markdown headings"); assert(view);
     child = GetDlgItem(view, 1); assert(SendMessageW(child, LB_GETCOUNT, 0, 0) == 2);
     SendMessageW(child, LB_SETCURSEL, 1, 0);
     SendMessageW(view, WM_COMMAND, MAKEWPARAM(1, LBN_DBLCLK), (LPARAM)child);
     SendMessageW(edit, EM_GETSEL, (WPARAM)&a, (LPARAM)&b);
     assert(a == (DWORD)(wcsstr(doc, L"## Two") - doc) && a == b);
     assert(md_command(owner, edit, MD_READING_PREVIEW));
-    view = FindWindowW(L"NodeChad.Markdown", L"Markdown reading preview — snapshot"); assert(view);
+    view = FindWindowW(L"NoteChad.Markdown", L"Markdown reading preview — snapshot"); assert(view);
     child = GetDlgItem(view, 1); assert(GetWindowLongPtrW(child, GWL_STYLE) & ES_READONLY);
     GetWindowTextW(child, rendered, 1024);
     assert(wcsstr(rendered, L"One") && !wcsstr(rendered, L"# One"));
@@ -63,7 +63,7 @@ static void test_native_views(void) {
     SendMessageW(child, EM_GETCHARFORMAT, SCF_SELECTION, (LPARAM)&cf); assert(cf.yHeight > 220);
     expect_text(edit, doc); assert(!SendMessageW(edit, EM_GETMODIFY, 0, 0));
     SetWindowTextW(edit, L"# Refreshed"); assert(md_command(owner, edit, MD_READING_PREVIEW));
-    view = FindWindowW(L"NodeChad.Markdown", L"Markdown reading preview — snapshot"); assert(view);
+    view = FindWindowW(L"NoteChad.Markdown", L"Markdown reading preview — snapshot"); assert(view);
     child = GetDlgItem(view, 1); GetWindowTextW(child, rendered, 1024); assert(wcsstr(rendered, L"Refreshed"));
     SendMessageW(child, WM_KEYDOWN, VK_ESCAPE, 0); assert(!IsWindow(view));
     DestroyWindow(owner);
@@ -85,16 +85,16 @@ static void test_edge_cases(void) {
     assert(!md_command(owner, edit, MD_BOLD)); expect_text(edit, L"abc");
     SendMessageW(edit, EM_SETLIMITTEXT, 100000, 0);
     SetWindowTextW(edit, L"# old"); assert(md_command(owner, edit, MD_HEADING_NAVIGATION));
-    view = FindWindowW(L"NodeChad.Markdown", L"Markdown headings"); child = GetDlgItem(view, 1);
+    view = FindWindowW(L"NoteChad.Markdown", L"Markdown headings"); child = GetDlgItem(view, 1);
     SetWindowTextW(edit, L"prefix\r\n## New"); SendMessageW(edit, EM_SETSEL, 1, 1);
     SendMessageW(child, WM_KEYDOWN, VK_RETURN, 0);
     SendMessageW(edit, EM_GETSEL, (WPARAM)&a, (LPARAM)&b); assert(a == 1 && b == 1);
-    view = FindWindowW(L"NodeChad.Markdown", L"Markdown headings"); child = GetDlgItem(view, 1);
+    view = FindWindowW(L"NoteChad.Markdown", L"Markdown headings"); child = GetDlgItem(view, 1);
     SendMessageW(child, WM_KEYDOWN, VK_RETURN, 0);
     SendMessageW(edit, EM_GETSEL, (WPARAM)&a, (LPARAM)&b); assert(a == 8 && b == 8);
     SetWindowTextW(edit, L"# headings\r\n**bold** and ``code``\r\n- list\r\n1. ordered\r\n☃ literal <script>no</script> https://example.invalid\r\n");
     assert(md_command(owner, edit, MD_READING_PREVIEW));
-    view = FindWindowW(L"NodeChad.Markdown", L"Markdown reading preview — snapshot"); child = GetDlgItem(view, 1);
+    view = FindWindowW(L"NoteChad.Markdown", L"Markdown reading preview — snapshot"); child = GetDlgItem(view, 1);
     { WCHAR got[1024]; CHARFORMAT2W cf;
       GetWindowTextW(child, got, 1024); assert(wcsstr(got, L"bold and code"));
       assert(wcsstr(got, L"• list") && wcsstr(got, L"1. ordered") && wcsstr(got, L"<script>no</script>"));
@@ -116,7 +116,7 @@ static void test_long_offsets_and_lifecycle(void) {
     SendMessageW(edit, EM_SETLIMITTEXT, 200000, 0); SetWindowTextW(edit, doc);
     SendMessageW(edit, EM_SETSEL, 70002, 70002);
     assert(md_command(owner, edit, MD_HEADING_NAVIGATION));
-    view = FindWindowW(L"NodeChad.Markdown", L"Markdown headings"); child = GetDlgItem(view, 1);
+    view = FindWindowW(L"NoteChad.Markdown", L"Markdown headings"); child = GetDlgItem(view, 1);
     assert(SendMessageW(child, LB_GETCOUNT, 0, 0) == 1); SendMessageW(child, WM_KEYDOWN, VK_RETURN, 0);
     SendMessageW(edit, EM_GETSEL, (WPARAM)&a, (LPARAM)&b); assert(a == 70002 && b == 70002);
     SendMessageW(edit, EM_SETSEL, 69999, 70000); assert(md_command(owner, edit, MD_BOLD));
@@ -124,7 +124,7 @@ static void test_long_offsets_and_lifecycle(void) {
     HeapFree(GetProcessHeap(), 0, doc);
     SetWindowTextW(edit, L""); assert(md_command(owner, edit, MD_READING_PREVIEW));
     for (int i = 0; i < 12; ++i) {
-        view = FindWindowW(L"NodeChad.Markdown", L"Markdown reading preview — snapshot");
+        view = FindWindowW(L"NoteChad.Markdown", L"Markdown reading preview — snapshot");
         child = GetDlgItem(view, 1); assert(GetWindowTextLengthW(child) == 0);
         SendMessageW(child, WM_KEYDOWN, VK_F6, 0);
     }

@@ -1,23 +1,23 @@
-# nodeChad stdio API
+# noteChad stdio API
 
-Control one isolated nodeChad editor over its inherited stdin/stdout pipes. The API executes only `read`, `write`, `edit`, `save`, and `load`; it has no shell, arbitrary-code command, listener, network dependency, or MCP runtime.
+Control one isolated noteChad editor over its inherited stdin/stdout pipes. The API executes only `read`, `write`, `edit`, `save`, and `load`; it has no shell, arbitrary-code command, listener, network dependency, or MCP runtime.
 
 ## Requirements and quick start
 
-- Build nodeChad for Windows x64 with MSVC, including `src/api.c` and `user32.lib`. Static CRT (`/MT`) is supported.
-- Use Python 3.8+ for the dependency-free client in `tools/nodechad_client.py`.
+- Build noteChad for Windows x64 with MSVC, including `src/api.c` and `user32.lib`. Static CRT (`/MT`) is supported.
+- Use Python 3.8+ for the dependency-free client in `tools/notechad_client.py`.
 - Launch the executable directly, with binary stdin/stdout pipes; never through a shell. Reserve stdout exclusively for the protocol. Send diagnostics to stderr.
 
 Place `tools` on Python's import path, then run:
 
 ```python
 from pathlib import Path
-from nodechad_client import NodeChad, ApiError
+from notechad_client import NoteChad, ApiError
 
-exe = Path('bin/nodeChad.exe').resolve()
+exe = Path('bin/noteChad.exe').resolve()
 target = Path('new-note.txt').resolve()  # Use a new path, not another existing file.
 
-with NodeChad(exe, visible=False) as nc:
+with NoteChad(exe, visible=False) as nc:
     snapshot = nc.request('read')
     changed = nc.request('write', rev=snapshot.revision, text='Hello\nworld 😀\n')
     # Offsets count Unicode code points in the LF-normalized document.
@@ -30,7 +30,7 @@ with NodeChad(exe, visible=False) as nc:
 Read first to obtain the live revision; every non-read request must supply an exact revision. GUI edits can invalidate it before the next request. On `ApiError`, inspect `.revision`, `.dirty`, and `.text`; read again and decide whether to retry. Do not blindly retry a mutation after `ProtocolError`: the pipe may have failed after the effect occurred.
 
 ```python
-with NodeChad(exe, visible=True) as nc:
+with NoteChad(exe, visible=True) as nc:
     current = nc.request('read')
     try:
         nc.request('load', rev=current.revision, text=str(target))
@@ -48,7 +48,7 @@ with NodeChad(exe, visible=True) as nc:
 | `--api` | Hidden, isolated editor | Exit and discard unsaved changes without prompting |
 | `--api-window` | Visible, isolated editor | Leave the editor open; detach API |
 
-The client closes stdin on context exit and never implicitly saves. For hidden instances it waits up to five seconds, then terminates an unresponsive owned child (two-second terminate grace before kill). For visible instances it closes its pipe endpoints without terminating or waiting for the window; `.process` remains available to its caller. The host implements these window/EOF policies; the transport only posts `WM_NODECHAD_EOF` when its worker exits. Clean EOF between packets emits no response.
+The client closes stdin on context exit and never implicitly saves. For hidden instances it waits up to five seconds, then terminates an unresponsive owned child (two-second terminate grace before kill). For visible instances it closes its pipe endpoints without terminating or waiting for the window; `.process` remains available to its caller. The host implements these window/EOF policies; the transport only posts `WM_NOTECHAD_EOF` when its worker exits. Clean EOF between packets emits no response.
 
 ## Wire protocol
 
@@ -96,7 +96,7 @@ Call `api_start(owner)` once from the editor's GUI thread after the editor is re
 Handle messages on the **same live editor**:
 
 ```c
-case WM_NODECHAD_API: {
+case WM_NOTECHAD_API: {
     ApiRequest *request;
     if (!api_owns(lParam)) return 0; /* Check BEFORE dereference, exactly once. */
     request = (ApiRequest *)lParam;
@@ -105,13 +105,13 @@ case WM_NODECHAD_API: {
        reply must be NULL or a NUL-terminated LocalAlloc allocation. */
     return 0;
 }
-case WM_NODECHAD_EOF:
+case WM_NOTECHAD_EOF:
     /* Hidden: destroy window without save prompt.
        Visible: keep window/editor open. No pointer is carried by this message. */
     return 0;
 ```
 
-`api_owns` checks the GUI-thread identity and atomically claims only the exact currently published worker pointer. It rejects NULL, arbitrary pointers and repeated claims without dereferencing them. Never use a raw `WM_NODECHAD_API` lParam before this check, and never stash a request for asynchronous processing.
+`api_owns` checks the GUI-thread identity and atomically claims only the exact currently published worker pointer. It rejects NULL, arbitrary pointers and repeated claims without dereferencing them. Never use a raw `WM_NOTECHAD_API` lParam before this check, and never stash a request for asynchronous processing.
 
 The worker owns the request and UTF-16 payload; both remain valid only until the synchronous `SendMessageW` returns. Treat payload as immutable. The GUI fills `BOOL ok`, `BOOL dirty`, `unsigned long long current`, and optional UTF-16 `reply`. Allocate reply with `LocalAlloc`; the worker frees it with `LocalFree` even for mutation replies whose successful body is forced empty. Do not free or retain the request/payload, or retain reply after returning. Invalid/oversized UTF-16 replies fail the channel.
 

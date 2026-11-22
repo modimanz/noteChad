@@ -9,7 +9,7 @@ import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-EXE = Path(os.environ.get('NODECHAD_TEST_EXE', ROOT / 'bin/nodeChad.exe')).resolve()
+EXE = Path(os.environ.get('NOTECHAD_TEST_EXE', ROOT / 'bin/noteChad.exe')).resolve()
 u = c.windll.user32
 u.FindWindowExW.argtypes = [w.HWND, w.HWND, w.LPCWSTR, w.LPCWSTR]
 u.FindWindowExW.restype = w.HWND
@@ -20,7 +20,7 @@ u.IsWindowVisible.argtypes = [w.HWND]
 u.GetParent.argtypes = [w.HWND]
 u.GetParent.restype = w.HWND
 
-def windows(pid, cls='NodeChad.Editor'):
+def windows(pid, cls='NoteChad.Editor'):
     result=[]; prior=None
     while True:
         h=u.FindWindowExW(None,prior,cls,None)
@@ -112,13 +112,13 @@ class TabsCore(unittest.TestCase):
 
     def test_last_tab_move_closes_source_and_modeless_views(self):
         p,h=self.launch(); e=active(h); edit_text(e,'# Header\r\nbody')
-        command(h,304); self.assertEqual(len(windows(p.pid,'NodeChad.Markdown')),1)
+        command(h,304); self.assertEqual(len(windows(p.pid,'NoteChad.Markdown')),1)
         command(h,109); hs=windows(p.pid); self.assertEqual(len(hs),1)
         self.assertNotEqual(hs[0],h); self.assertEqual(active(hs[0]),e)
-        self.assertFalse(windows(p.pid,'NodeChad.Markdown'))
+        self.assertFalse(windows(p.pid,'NoteChad.Markdown'))
         self.assertIsNone(p.poll()); self.assertEqual(text(e),'# Header\r\nbody')
-        command(hs[0],304); self.assertEqual(len(windows(p.pid,'NodeChad.Markdown')),1)
-        command(hs[0],106); self.assertFalse(windows(p.pid,'NodeChad.Markdown'))
+        command(hs[0],304); self.assertEqual(len(windows(p.pid,'NoteChad.Markdown')),1)
+        command(hs[0],106); self.assertFalse(windows(p.pid,'NoteChad.Markdown'))
 
     def test_controlled_commands_cannot_add_documents_or_windows(self):
         p,h=self.launch(api=True); e=active(h)

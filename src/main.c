@@ -30,7 +30,7 @@ static Frame *frames;
 static HINSTANCE instance;
 static UINT findmsg;
 static BOOL quitting;
-static const WCHAR app[]=L"nodeChad";
+static const WCHAR app[]=L"noteChad";
 enum { NEW=101, OPEN, SAVE, SAVEAS, EXIT_APP, NEW_TAB, CLOSE_TAB,
        NEW_WINDOW, MOVE_WINDOW, NEXT_TAB, PREV_TAB,
        UNDO_ID=201, CUT_ID, COPY_ID, PASTE_ID, ALL_ID, FIND_ID, NEXT_ID,
@@ -57,7 +57,7 @@ static HMENU menus(BOOL isolated){
     m=section(bar,L"&Markdown");item(m,301,L"&Bold\tCtrl+B");item(m,302,L"Inline &code\tCtrl+`");item(m,303,L"&Task list\tCtrl+Shift+L");sep(m);item(m,304,L"Heading &outline…\tCtrl+Shift+O");item(m,305,L"&Reading preview\tF6");
     m=section(bar,L"&View");item(m,WRAP_ID,L"&Word wrap");item(m,NEXT_TAB,L"Next tab\tCtrl+Tab");item(m,PREV_TAB,L"Previous tab\tCtrl+Shift+Tab");
     m=section(bar,L"&AI");item(m,401,L"&Enable local completion for this session");item(m,402,L"Request a &completion…\tCtrl+Space");
-    m=section(bar,L"&Help");item(m,ABOUT,L"&About nodeChad");
+    m=section(bar,L"&Help");item(m,ABOUT,L"&About noteChad");
     if(isolated){UINT ids[]={NEW,CLOSE_TAB,NEW_WINDOW,MOVE_WINDOW,NEXT_TAB,PREV_TAB};for(unsigned i=0;i<ARRAYSIZE(ids);++i)EnableMenuItem(bar,ids[i],MF_BYCOMMAND|MF_GRAYED);}
     return bar;
 }
@@ -77,7 +77,7 @@ static void refresh_tabs(Frame *f){
 static void paint_status(Frame *f){
     Tab *t=current(f);if(!t || !f->hwnd)return;
     WCHAR title[MAX_PATH+48],label[MAX_PATH+8],state[192];tab_label(t,label,ARRAYSIZE(label));
-    StringCchPrintfW(title,ARRAYSIZE(title),L"%s — nodeChad",label);SetWindowTextW(f->hwnd,title);
+    StringCchPrintfW(title,ARRAYSIZE(title),L"%s — noteChad",label);SetWindowTextW(f->hwnd,title);
     StringCchPrintfW(state,ARRAYSIZE(state),L"  %s     ·     %s     ·     AI %s%s",tf_format(&t->doc.format),t->doc.dirty?L"Unsaved":L"Ready",ai_enabled()?L"on":L"off",f->controlled?L"     ·     API connected":L"");SetWindowTextW(f->footer,state);
     HMENU m=GetMenu(f->hwnd);CheckMenuItem(m,WRAP_ID,t->wrap?MF_CHECKED:MF_UNCHECKED);CheckMenuItem(m,401,ai_enabled()?MF_CHECKED:MF_UNCHECKED);EnableMenuItem(m,402,ai_enabled()?MF_ENABLED:MF_GRAYED);refresh_tabs(f);
 }
@@ -141,7 +141,7 @@ static Tab *add_tab(Frame *f){
 }
 static void remove_tab(Frame *f,int index,BOOL destroy){
     Tab *t=f->tabs[index];dismiss_views(f,t);
-    if(destroy){RemovePropW(t->doc.edit,L"nodeChad.ai.request");DestroyWindow(t->doc.edit);HeapFree(GetProcessHeap(),0,t);}
+    if(destroy){RemovePropW(t->doc.edit,L"noteChad.ai.request");DestroyWindow(t->doc.edit);HeapFree(GetProcessHeap(),0,t);}
     memmove(f->tabs+index,f->tabs+index+1,(SIZE_T)(f->count-index-1)*sizeof(*f->tabs));--f->count;
     if(f->active>index)--f->active;else if(f->active>=f->count)f->active=f->count-1;
     refresh_tabs(f);if(f->count)select_tab(f,f->active);else f->active=-1;
@@ -172,7 +172,7 @@ static void open_gui(Frame *f){
 static void toggle_wrap(Frame *f){
     Tab *t=current(f);HWND old=t->doc.edit;WCHAR *s=doc_snapshot(old);if(!s){errorbox(f,L"Not enough memory to change wrapping.");return;}
     DWORD a=0,b=0;SendMessageW(old,EM_GETSEL,(WPARAM)&a,(LPARAM)&b);HWND e=new_edit(f,!t->wrap);
-    if(e && SetWindowTextW(e,s)){dismiss_views(f,t);RemovePropW(old,L"nodeChad.ai.request");t->doc.edit=e;++t->doc.revision;t->wrap=!t->wrap;DestroyWindow(old);ShowWindow(e,SW_SHOW);layout(f);SendMessageW(e,EM_SETSEL,a,b);SendMessageW(e,EM_SCROLLCARET,0,0);SetFocus(e);}
+    if(e && SetWindowTextW(e,s)){dismiss_views(f,t);RemovePropW(old,L"noteChad.ai.request");t->doc.edit=e;++t->doc.revision;t->wrap=!t->wrap;DestroyWindow(old);ShowWindow(e,SW_SHOW);layout(f);SendMessageW(e,EM_SETSEL,a,b);SendMessageW(e,EM_SCROLLCARET,0,0);SetFocus(e);}
     else{if(e)DestroyWindow(e);errorbox(f,L"Could not change wrapping.");}LocalFree(s);paint_status(f);
 }
 static void find_dialog(Frame *f){
@@ -207,7 +207,7 @@ static BOOL transfer_tab(Frame *source,int index,Frame *target,int at){
     SetLastError(0);HWND prior=SetParent(t->doc.edit,target->hwnd);
     if(!prior && GetLastError())return FALSE;
     dismiss_views(source,t);dismiss_views(target,current(target));
-    RemovePropW(t->doc.edit,L"nodeChad.ai.request");++t->doc.revision;
+    RemovePropW(t->doc.edit,L"noteChad.ai.request");++t->doc.revision;
     if(current(target))ShowWindow(current(target)->doc.edit,SW_HIDE);
     ShowWindow(t->doc.edit,SW_HIDE);remove_tab(source,index,FALSE);
     memmove(target->tabs+at+1,target->tabs+at,(SIZE_T)(target->count-at)*sizeof(*target->tabs));
@@ -239,7 +239,7 @@ static void command(Frame *f,UINT id){
     case WRAP_ID:toggle_wrap(f);break;case TIME_ID:{WCHAR time[200],date[100];if(GetTimeFormatEx(NULL,TIME_NOSECONDS,NULL,NULL,time,100)&&GetDateFormatEx(NULL,DATE_SHORTDATE,NULL,NULL,date,100,NULL)){StringCchCatW(time,200,L" ");StringCchCatW(time,200,date);SendMessageW(t->doc.edit,EM_REPLACESEL,TRUE,(LPARAM)time);}break;}
     case 401:ai_toggle(f->hwnd);for(Frame *p=frames;p;p=p->next)paint_status(p);break;
     case 402:if(ai_enabled())ai_request(f->hwnd,t->doc.edit,t->doc.revision);break;
-    case ABOUT:MessageBoxW(f->hwnd,L"nodeChad\nNative text and Markdown editor\n\nCtrl+T: New tab • Ctrl+W: Close tab\nCtrl+Shift+N: New window\nCtrl+Shift+M: Move tab to new window\nF6: Reading preview\nCtrl+Shift+O: Heading outline\nCtrl+Space: Local AI completion (opt-in)\n\nHermes can open an isolated session with --api or --api-window.",app,MB_OK|MB_ICONINFORMATION);break;
+    case ABOUT:MessageBoxW(f->hwnd,L"noteChad\nNative text and Markdown editor\n\nCtrl+T: New tab • Ctrl+W: Close tab\nCtrl+Shift+N: New window\nCtrl+Shift+M: Move tab to new window\nF6: Reading preview\nCtrl+Shift+O: Heading outline\nCtrl+Space: Local AI completion (opt-in)\n\nHermes can open an isolated session with --api or --api-window.",app,MB_OK|MB_ICONINFORMATION);break;
     default:if(id>=301 && id<=305)md_command(f->hwnd,t->doc.edit,id);break;
     }
 }
@@ -252,7 +252,7 @@ static BOOL can_close_frame(Frame *f){
 }
 static void finish_busy(Frame *f){
     --f->busy;
-    if(!f->busy && f->eof_pending)PostMessageW(f->hwnd,WM_NODECHAD_EOF,0,0);
+    if(!f->busy && f->eof_pending)PostMessageW(f->hwnd,WM_NOTECHAD_EOF,0,0);
 }
 static LRESULT CALLBACK window_proc(HWND h,UINT m,WPARAM w,LPARAM l){
     Frame *f=(Frame *)GetWindowLongPtrW(h,GWLP_USERDATA);
@@ -288,12 +288,12 @@ static LRESULT CALLBACK window_proc(HWND h,UINT m,WPARAM w,LPARAM l){
         if(!f->isolated && !f->busy && IsWindowEnabled(h)){UINT n=DragQueryFileW(drop,0xFFFFFFFF,NULL,0);++f->busy;
             for(UINT i=0;i<n;++i){UINT len=DragQueryFileW(drop,i,NULL,0);WCHAR path[MAX_PATH];if(len && len<MAX_PATH && DragQueryFileW(drop,i,path,MAX_PATH)){const WCHAR *p=path;open_paths(f,1,&p);}else errorbox(f,L"Use a path shorter than 260 characters.");}--f->busy;}
         DragFinish(drop);return 0;}
-    case WM_NODECHAD_API:if(f->controlled && current(f) && api_owns(l)){ApiRequest *r=(ApiRequest *)l;doc_dispatch(&current(f)->doc,r,!f->busy&&IsWindowEnabled(h));if(r->ok && strcmp(r->verb,"read"))paint_status(f);}return 0;
-    case WM_NODECHAD_EOF:if(f->controlled){if(f->hidden && f->busy){f->eof_pending=TRUE;return 0;}f->eof_pending=FALSE;f->controlled=FALSE;if(f->hidden)DestroyWindow(h);else paint_status(f);}return 0;
-    case WM_NODECHAD_AI:{Tab *t=current(f);++f->busy;ai_result(h,t?t->doc.edit:NULL,t?t->doc.revision:0,l);finish_busy(f);return 0;}
+    case WM_NOTECHAD_API:if(f->controlled && current(f) && api_owns(l)){ApiRequest *r=(ApiRequest *)l;doc_dispatch(&current(f)->doc,r,!f->busy&&IsWindowEnabled(h));if(r->ok && strcmp(r->verb,"read"))paint_status(f);}return 0;
+    case WM_NOTECHAD_EOF:if(f->controlled){if(f->hidden && f->busy){f->eof_pending=TRUE;return 0;}f->eof_pending=FALSE;f->controlled=FALSE;if(f->hidden)DestroyWindow(h);else paint_status(f);}return 0;
+    case WM_NOTECHAD_AI:{Tab *t=current(f);++f->busy;ai_result(h,t?t->doc.edit:NULL,t?t->doc.revision:0,l);finish_busy(f);return 0;}
     case WM_QUERYENDSESSION:case WM_CLOSE:{if(f->busy || f->closing)return FALSE;++f->busy;BOOL yes=can_close_frame(f);finish_busy(f);if(m==WM_QUERYENDSESSION)return yes;if(yes)DestroyWindow(h);return 0;}
     case WM_DESTROY:{f->closing=TRUE;dismiss_views(f,current(f));
-        for(int i=0;i<f->count;++i){md_forget(f->tabs[i]->doc.edit);RemovePropW(f->tabs[i]->doc.edit,L"nodeChad.ai.request");}return 0;}
+        for(int i=0;i<f->count;++i){md_forget(f->tabs[i]->doc.edit);RemovePropW(f->tabs[i]->doc.edit,L"noteChad.ai.request");}return 0;}
     case WM_NCDESTROY:{Frame **p=&frames;while(*p && *p!=f)p=&(*p)->next;if(*p)*p=f->next;
         for(int i=0;i<f->count;++i)HeapFree(GetProcessHeap(),0,f->tabs[i]);
         if(f->tabs)HeapFree(GetProcessHeap(),0,f->tabs);DeleteObject(f->mono);DeleteObject(f->ui);
@@ -312,7 +312,7 @@ static BOOL present_frame(Frame *f){
 static Frame *create_frame(BOOL controlled,BOOL hidden,BOOL blank){
     Frame *f=HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,sizeof(*f));if(!f)return NULL;
     f->controlled=controlled;f->isolated=controlled;f->hidden=hidden;f->active=-1;f->next=frames;frames=f;
-    HWND h=CreateWindowW(L"NodeChad.Editor",app,WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,900,650,NULL,menus(controlled),instance,f);
+    HWND h=CreateWindowW(L"NoteChad.Editor",app,WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,900,650,NULL,menus(controlled),instance,f);
     if(!h)return NULL;
     if(blank && !add_tab(f)){DestroyWindow(h);return NULL;}
     if(!hidden && !present_frame(f))return NULL;
@@ -330,7 +330,7 @@ int WINAPI wWinMain(HINSTANCE inst,HINSTANCE prev,PWSTR cmd,int show){
     BOOL controlled=argc==2 && (!wcscmp(argv[1],L"--api") || !wcscmp(argv[1],L"--api-window"));
     BOOL hidden=controlled && !wcscmp(argv[1],L"--api");
     SetProcessDPIAware();INITCOMMONCONTROLSEX common={sizeof(common),ICC_TAB_CLASSES};InitCommonControlsEx(&common);
-    WNDCLASSW wc={0};wc.lpfnWndProc=window_proc;wc.hInstance=instance;wc.lpszClassName=L"NodeChad.Editor";wc.hCursor=LoadCursorW(NULL,IDC_ARROW);wc.hIcon=LoadIconW(instance,MAKEINTRESOURCEW(IDI_NODECHAD));wc.hbrBackground=(HBRUSH)(COLOR_WINDOW+1);
+    WNDCLASSW wc={0};wc.lpfnWndProc=window_proc;wc.hInstance=instance;wc.lpszClassName=L"NoteChad.Editor";wc.hCursor=LoadCursorW(NULL,IDC_ARROW);wc.hIcon=LoadIconW(instance,MAKEINTRESOURCEW(IDI_NOTECHAD));wc.hbrBackground=(HBRUSH)(COLOR_WINDOW+1);
     if(!RegisterClassW(&wc)){LocalFree(argv);return 1;}findmsg=RegisterWindowMessageW(FINDMSGSTRINGW);
     BOOL routing=!controlled && !standalone;
     if(routing){int result=router_start(argc,argv,routed_window);if(result!=ROUTER_PRIMARY){LocalFree(argv);return result==ROUTER_FORWARDED?0:1;}}

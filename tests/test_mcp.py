@@ -11,9 +11,9 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-SERVER = ROOT / 'tools/nodechad_mcp.py'
+SERVER = ROOT / 'tools/notechad_mcp.py'
 SDK = importlib.util.find_spec('mcp') is not None
-REAL_EXE = os.environ.get('NODECHAD_MCP_EXE')
+REAL_EXE = os.environ.get('NOTECHAD_MCP_EXE')
 SCRATCH = Path(os.environ.get('TMPDIR', str(Path.home() / 'AppData/Local/hermes/cache/scratch')))
 
 
@@ -33,19 +33,19 @@ class MCPTests(unittest.IsolatedAsyncioTestCase):
         from mcp.client.stdio import stdio_client
         from contextlib import AsyncExitStack
         SCRATCH.mkdir(parents=True, exist_ok=True)
-        self.directory = tempfile.TemporaryDirectory(prefix='nodechad-mcp-', dir=SCRATCH)
+        self.directory = tempfile.TemporaryDirectory(prefix='notechad-mcp-', dir=SCRATCH)
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
         self.stack = AsyncExitStack()
         if REAL_EXE:
-            self.assertTrue(Path(REAL_EXE).is_file(), 'NODECHAD_MCP_EXE must point to a built executable')
+            self.assertTrue(Path(REAL_EXE).is_file(), 'NOTECHAD_MCP_EXE must point to a built executable')
             args = [str(SERVER), '--exe', REAL_EXE]
         else:
             bootstrap = (
                 'import sys,runpy; '
                 f'sys.path.insert(0,{str(ROOT / "tests")!r}); '
                 'import test_mcp_surrogate; '
-                'sys.modules["nodechad_client"]=test_mcp_surrogate; '
+                'sys.modules["notechad_client"]=test_mcp_surrogate; '
                 f'sys.argv=[{str(SERVER)!r}]+sys.argv[1:]; '
                 f'runpy.run_path({str(SERVER)!r},run_name="__main__")'
             )
@@ -67,7 +67,7 @@ class MCPTests(unittest.IsolatedAsyncioTestCase):
 
     @connected
     async def test_initialization_discovery_and_read(self):
-        self.assertEqual(self.initialized.model_dump(by_alias=True)['serverInfo']['name'], 'nodechad')
+        self.assertEqual(self.initialized.model_dump(by_alias=True)['serverInfo']['name'], 'notechad')
         listed = await self.session.list_tools()
         self.assertEqual({t.name for t in listed.tools},
                          {'read', 'write', 'edit', 'save', 'load'})

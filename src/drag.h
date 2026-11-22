@@ -1,5 +1,5 @@
-#ifndef NODECHAD_DRAG_H
-#define NODECHAD_DRAG_H
+#ifndef NOTECHAD_DRAG_H
+#define NOTECHAD_DRAG_H
 #include <windows.h>
 
 #define WM_NC_TABDROP (WM_APP + 60)
