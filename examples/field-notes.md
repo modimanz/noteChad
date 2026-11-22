@@ -1,6 +1,6 @@
 # Field notes
 
-Use this file to try the Markdown commands. Press **F6** for a reading preview or **Ctrl+Shift+O** to jump to a heading.
+The Markdown source is on the left and the live preview is on the right. Press **F6** to hide or show the preview, or **Ctrl+Shift+O** to jump to a heading.
 
 ## Checklist
 

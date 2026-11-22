@@ -10,6 +10,9 @@
 #pragma warning(pop)
 
 #define MD_MAX_TEXT (8u * 1024u * 1024u)
+#define MD_PREVIEW_MAX_TEXT (128u * 1024u)
+#define MD_PREVIEW_MAX_LINES 2048u
+#define MD_PREVIEW_WORK (1024u * 1024u)
 
 typedef struct { size_t line, title, length; int level; } MdHeading;
 typedef struct { WCHAR fence; size_t count; } MdFence;
@@ -170,13 +173,14 @@ typedef struct {
     WCHAR *snapshot, *scratch;
     MdHeading *headings;
     size_t count;
-    BOOL preview;
+    size_t work, emits;
+    BOOL failed;
 } MdView;
-static HWND md_outline_window, md_preview_window;
+static HWND md_outline_window;
 static HMODULE md_richedit;
-static BOOL md_open(HWND owner, HWND edit, BOOL preview);
+static BOOL md_open(HWND owner, HWND edit);
 
-static void md_style(HWND rich, int level, BOOL code, BOOL bold) {
+static BOOL md_style(HWND rich, int level, BOOL code, BOOL bold) {
     static const LONG sizes[] = {220, 400, 340, 300, 260, 240, 220};
     CHARFORMAT2W cf;
     ZeroMemory(&cf, sizeof(cf)); cf.cbSize = sizeof(cf);
@@ -186,25 +190,32 @@ static void md_style(HWND rich, int level, BOOL code, BOOL bold) {
     cf.crTextColor = code ? RGB(55, 65, 80) : RGB(25, 30, 38);
     cf.crBackColor = code ? RGB(240, 242, 245) : RGB(255, 255, 255);
     wcscpy_s(cf.szFaceName, LF_FACESIZE, code ? L"Consolas" : L"Segoe UI");
-    SendMessageW(rich, EM_SETCHARFORMAT, SCF_SELECTION, (LPARAM)&cf);
+    return SendMessageW(rich, EM_SETCHARFORMAT, SCF_SELECTION, (LPARAM)&cf) != 0;
 }
 static void md_emit(MdView *v, const WCHAR *s, size_t n, int heading, BOOL code, BOOL bold) {
+    CHARRANGE before, after;
     if (!n) return;
+    if (v->failed || ++v->emits > 4096) { v->failed = TRUE; return; }
     memcpy(v->scratch, s, n * sizeof(WCHAR)); v->scratch[n] = 0;
-    md_style(v->child, heading, code, bold);
+    SendMessageW(v->child, EM_EXGETSEL, 0, (LPARAM)&before);
+    if (!md_style(v->child, heading, code, bold)) { v->failed = TRUE; return; }
     SendMessageW(v->child, EM_REPLACESEL, FALSE, (LPARAM)v->scratch);
+    SendMessageW(v->child, EM_EXGETSEL, 0, (LPARAM)&after);
+    if (after.cpMax - before.cpMax != (LONG)n) v->failed = TRUE;
 }
 /* Deliberately conservative inline subset, never interpreted as RTF/HTML. */
 static void md_inline(MdView *v, const WCHAR *s, size_t a, size_t b, int heading) {
     size_t p = a, plain = a;
     while (p < b) {
         size_t mark = 0, q, close = b; BOOL code = s[p] == L'`';
+        if (!v->work || v->failed) { v->failed = TRUE; return; } --v->work;
         if (code) { while (p + mark < b && s[p + mark] == L'`') ++mark; }
         else if (s[p] == L'*' && p + 1 < b && s[p + 1] == L'*') mark = 2;
         if (!mark) { ++p; continue; }
         q = p + mark;
         while (q < b) {
             size_t run = 0;
+            if (!v->work) { v->failed = TRUE; return; } --v->work;
             if (code && s[q] == L'`') {
                 while (q + run < b && s[q + run] == L'`') ++run;
                 if (run == mark) { close = q; break; }
@@ -225,14 +236,11 @@ static void md_inline(MdView *v, const WCHAR *s, size_t a, size_t b, int heading
     md_emit(v, s + plain, b - plain, heading, FALSE, FALSE);
 }
 static void md_render(MdView *v) {
-    size_t pos = 0; MdFence fence = {0}; const WCHAR *s = v->snapshot;
-    SendMessageW(v->child, WM_SETREDRAW, FALSE, 0);
-    SendMessageW(v->child, EM_EXLIMITTEXT, 0, MD_MAX_TEXT * 2);
-    SendMessageW(v->child, EM_AUTOURLDETECT, FALSE, 0);
-    SendMessageW(v->child, EM_SETBKGNDCOLOR, 0, RGB(255, 255, 255));
+    size_t pos = 0, lines = 0; MdFence fence = {0}; const WCHAR *s = v->snapshot;
     while (s[pos]) {
         MdLine l = md_line(s, pos, &fence); size_t p = l.content, end = l.end, indent = 0, content;
         PARAFORMAT2 pf; ZeroMemory(&pf, sizeof(pf)); pf.cbSize = sizeof(pf);
+        if (v->failed || ++lines > MD_PREVIEW_MAX_LINES) { v->failed = TRUE; break; }
         pos = l.next; if (l.fence) continue;
         pf.dwMask = PFM_STARTINDENT | PFM_OFFSET | PFM_SPACEBEFORE | PFM_SPACEAFTER;
         pf.dySpaceBefore = l.heading ? 160 : 0; pf.dySpaceAfter = l.code ? 0 : 80;
@@ -243,7 +251,7 @@ static void md_render(MdView *v) {
             content = md_list_content(s, p, end);
             if (content != p) {
                 pf.dxStartIndent = (LONG)(240 + (indent > 40 ? 40 : indent) * 100); pf.dxOffset = -180;
-                SendMessageW(v->child, EM_SETPARAFORMAT, 0, (LPARAM)&pf);
+                if (!SendMessageW(v->child, EM_SETPARAFORMAT, 0, (LPARAM)&pf)) { v->failed = TRUE; break; }
                 if (content + 3 <= end && s[content] == L'[' && s[content + 2] == L']' &&
                     (s[content + 1] == L' ' || s[content + 1] == L'x' || s[content + 1] == L'X') &&
                     (content + 3 == end || md_space(s[content + 3]))) {
@@ -256,16 +264,101 @@ static void md_render(MdView *v) {
                 }
             } else p = l.start;
         }
-        SendMessageW(v->child, EM_SETPARAFORMAT, 0, (LPARAM)&pf);
+        if (!SendMessageW(v->child, EM_SETPARAFORMAT, 0, (LPARAM)&pf)) { v->failed = TRUE; break; }
         if (l.code) md_emit(v, s + l.start, end - l.start, 0, TRUE, FALSE);
         else md_inline(v, s, p, end, l.heading);
         md_emit(v, L"\r", 1, l.heading, l.code, FALSE);
     }
-    SendMessageW(v->child, EM_SETSEL, 0, 0);
-    SendMessageW(v->child, EM_SETREADONLY, TRUE, 0);
-    SendMessageW(v->child, EM_EMPTYUNDOBUFFER, 0, 0);
-    SendMessageW(v->child, WM_SETREDRAW, TRUE, 0);
-    InvalidateRect(v->child, NULL, TRUE);
+}
+/* Subclass identity marks only panes created here. No source binding, timers or
+   keyboard handling: the frame owns those policies. */
+static LRESULT CALLBACK md_preview_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp,
+                                         UINT_PTR id, DWORD_PTR ref) {
+    (void)ref;
+    if (msg == WM_NCDESTROY) RemoveWindowSubclass(hwnd, md_preview_proc, id);
+    return DefSubclassProc(hwnd, msg, wp, lp);
+}
+HWND md_preview_create(HWND frame) {
+    HWND pane;
+    if (!IsWindow(frame)) return NULL;
+    if (!md_richedit) {
+        /* Never search the document directory for a DLL. */
+        md_richedit = LoadLibraryExW(L"Msftedit.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
+        if (!md_richedit) return NULL;
+    }
+    pane = CreateWindowExW(0, MSFTEDIT_CLASS, L"", WS_CHILD | WS_VSCROLL |
+        WS_TABSTOP | ES_MULTILINE | ES_AUTOVSCROLL | ES_NOHIDESEL | ES_READONLY,
+        0, 0, 1, 1, frame, NULL, GetModuleHandleW(NULL), NULL);
+    if (!pane) return NULL;
+    if (!SetWindowSubclass(pane, md_preview_proc, 1, 0)) { DestroyWindow(pane); return NULL; }
+    SendMessageW(pane, EM_EXLIMITTEXT, 0, MD_PREVIEW_MAX_TEXT * 2);
+    SendMessageW(pane, EM_AUTOURLDETECT, FALSE, 0);
+    SendMessageW(pane, EM_SETBKGNDCOLOR, 0, RGB(255, 255, 255));
+    SendMessageW(pane, EM_SETMARGINS, EC_LEFTMARGIN | EC_RIGHTMARGIN, MAKELPARAM(12, 12));
+    SendMessageW(pane, EM_SETUNDOLIMIT, 0, 0);
+    return pane;
+}
+BOOL md_preview_update(HWND pane, HWND source, BOOL preserve_position) {
+    MdView v; CHARRANGE selection = {0, 0}; POINT scroll = {0, 0};
+    DWORD_PTR tag; LRESULT events; BOOL visible, ok = FALSE; int n;
+    const WCHAR *error = L"Markdown preview unavailable: could not read or render the snapshot. Retry to refresh.";
+    if (!IsWindow(pane) || source == pane || !GetWindowSubclass(pane, md_preview_proc, 1, &tag)) return FALSE;
+    ZeroMemory(&v, sizeof(v)); v.child = pane; v.work = MD_PREVIEW_WORK;
+    if (preserve_position) {
+        SendMessageW(pane, EM_EXGETSEL, 0, (LPARAM)&selection);
+        SendMessageW(pane, EM_GETSCROLLPOS, 0, (LPARAM)&scroll);
+    }
+    if (!IsWindow(source)) goto display;
+    n = GetWindowTextLengthW(source);
+    if (n < 0) goto display;
+    if ((size_t)n > MD_PREVIEW_MAX_TEXT) {
+        error = L"Markdown preview limited: snapshot exceeds 128K UTF-16 characters. Source is unchanged.";
+        goto display;
+    }
+    v.snapshot = (WCHAR *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, ((size_t)n + 1) * sizeof(WCHAR));
+    v.scratch = (WCHAR *)HeapAlloc(GetProcessHeap(), 0, ((size_t)n + 8) * sizeof(WCHAR));
+    if (!v.snapshot || !v.scratch) goto display;
+    if (GetWindowTextW(source, v.snapshot, n + 1) != n) goto display;
+    ok = TRUE;
+ display:
+    /* WM_SETREDRAW(TRUE) changes WS_VISIBLE, so never send it to a hidden pane. */
+    visible = (GetWindowLongPtrW(pane, GWL_STYLE) & WS_VISIBLE) != 0;
+    events = SendMessageW(pane, EM_GETEVENTMASK, 0, 0);
+    SendMessageW(pane, EM_SETEVENTMASK, 0, 0);
+    if (visible) SendMessageW(pane, WM_SETREDRAW, FALSE, 0);
+    SendMessageW(pane, EM_SETREADONLY, FALSE, 0);
+    if (!SetWindowTextW(pane, L"") || !md_style(pane, 0, FALSE, FALSE)) ok = FALSE;
+    if (ok) {
+        md_render(&v);
+        if (v.failed) {
+            ok = FALSE;
+            error = L"Markdown preview limited or unavailable: snapshot exceeds the line/formatting budget, or rendering failed. Source is unchanged.";
+        }
+    }
+    if (!ok) {
+        PARAFORMAT2 pf; ZeroMemory(&pf, sizeof(pf)); pf.cbSize = sizeof(pf);
+        pf.dwMask = PFM_STARTINDENT | PFM_OFFSET | PFM_SPACEBEFORE | PFM_SPACEAFTER;
+        SetWindowTextW(pane, L""); md_style(pane, 0, FALSE, FALSE);
+        SendMessageW(pane, EM_SETPARAFORMAT, 0, (LPARAM)&pf);
+        SetWindowTextW(pane, error);
+        selection.cpMin = selection.cpMax = 0; scroll.x = scroll.y = 0;
+    }
+    n = GetWindowTextLengthW(pane);
+    if (selection.cpMin < 0) selection.cpMin = 0;
+    if (selection.cpMax < 0) selection.cpMax = 0;
+    if (selection.cpMin > n) selection.cpMin = n;
+    if (selection.cpMax > n) selection.cpMax = n;
+    SendMessageW(pane, EM_EXSETSEL, 0, (LPARAM)&selection);
+    SendMessageW(pane, EM_SETSCROLLPOS, 0, (LPARAM)&scroll);
+    SendMessageW(pane, EM_SETREADONLY, TRUE, 0);
+    SendMessageW(pane, EM_EMPTYUNDOBUFFER, 0, 0);
+    SendMessageW(pane, EM_SETMODIFY, FALSE, 0);
+    SendMessageW(pane, EM_SETEVENTMASK, 0, events);
+    if (visible) SendMessageW(pane, WM_SETREDRAW, TRUE, 0);
+    InvalidateRect(pane, NULL, TRUE);
+    if (v.snapshot) HeapFree(GetProcessHeap(), 0, v.snapshot);
+    if (v.scratch) HeapFree(GetProcessHeap(), 0, v.scratch);
+    return ok;
 }
 static void md_jump(HWND window, MdView *v) {
     LRESULT index; WCHAR *now;
@@ -274,7 +367,7 @@ static void md_jump(HWND window, MdView *v) {
     if (wcscmp(now, v->snapshot)) {
         HWND owner = v->owner, source = v->source;
         HeapFree(GetProcessHeap(), 0, now);
-        if (md_open(owner, source, FALSE)) {
+        if (md_open(owner, source)) {
             MdView *fresh = (MdView *)GetWindowLongPtrW(md_outline_window, GWLP_USERDATA);
             if (fresh) SetWindowTextW(fresh->label, L"Source changed: refreshed. Choose a heading, then Enter.");
         }
@@ -297,9 +390,9 @@ static LRESULT CALLBACK md_child_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp,
         if (wp == VK_ESCAPE) {
             HWND source = v->source; DestroyWindow(window); if (IsWindow(source)) SetFocus(source); return 0;
         }
-        if (!v->preview && wp == VK_RETURN) { md_jump(window, v); return 0; }
+        if (wp == VK_RETURN) { md_jump(window, v); return 0; }
         if (wp == VK_F6 || (wp == 'R' && (GetKeyState(VK_CONTROL) & 0x8000))) {
-            md_open(v->owner, v->source, v->preview); return 0;
+            md_open(v->owner, v->source); return 0;
         }
     }
     if (msg == WM_NCDESTROY) RemoveWindowSubclass(hwnd, md_child_proc, 1);
@@ -322,59 +415,49 @@ static LRESULT CALLBACK md_window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp
         }
         case WM_SETFOCUS: SetFocus(v->child); return 0;
         case WM_COMMAND:
-            if (!v->preview && LOWORD(wp) == 1 && HIWORD(wp) == LBN_DBLCLK) { md_jump(hwnd, v); return 0; }
+            if (LOWORD(wp) == 1 && HIWORD(wp) == LBN_DBLCLK) { md_jump(hwnd, v); return 0; }
             break;
         case WM_CLOSE: DestroyWindow(hwnd); return 0;
         case WM_NCDESTROY:
             if (md_outline_window == hwnd) md_outline_window = NULL;
-            if (md_preview_window == hwnd) md_preview_window = NULL;
             md_free_view(v);
             SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0); break;
     }
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
-static BOOL md_open(HWND owner, HWND edit, BOOL preview) {
+static BOOL md_open(HWND owner, HWND edit) {
     WNDCLASSW wc; MdView *v; HWND window; HINSTANCE instance = GetModuleHandleW(NULL);
-    HWND previous = preview ? md_preview_window : md_outline_window;
-    size_t i, length; RECT r = {100, 100, 850, 720}; DWORD caret = 0; size_t selected = 0;
+    HWND previous = md_outline_window;
+    size_t i; RECT r = {100, 100, 850, 720}; DWORD caret = 0; size_t selected = 0;
     if (!IsWindow(owner) || !IsWindow(edit)) return FALSE;
-    if (preview && !md_richedit) {
-        /* System-directory-only DLL loading, no search of document/current directory. */
-        md_richedit = LoadLibraryExW(L"Msftedit.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
-        if (!md_richedit) return FALSE;
-    }
     ZeroMemory(&wc, sizeof(wc)); wc.lpfnWndProc = md_window_proc; wc.hInstance = instance;
     wc.lpszClassName = L"NoteChad.Markdown"; wc.hCursor = LoadCursorW(NULL, IDC_ARROW);
     wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     if (!RegisterClassW(&wc) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) return FALSE;
     v = (MdView *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*v)); if (!v) return FALSE;
-    v->source = edit; v->owner = owner; v->preview = preview; v->snapshot = md_text(edit);
+    v->source = edit; v->owner = owner; v->snapshot = md_text(edit);
     if (!v->snapshot) { HeapFree(GetProcessHeap(), 0, v); return FALSE; }
-    length = wcslen(v->snapshot);
-    if (preview) v->scratch = (WCHAR *)HeapAlloc(GetProcessHeap(), 0, (length + 8) * sizeof(WCHAR));
-    if ((preview && !v->scratch) || (!preview && !md_headings(v->snapshot, &v->headings, &v->count))) {
+    if (!md_headings(v->snapshot, &v->headings, &v->count)) {
         md_free_view(v); return FALSE;
     }
     GetWindowRect(owner, &r);
     window = CreateWindowExW(WS_EX_TOOLWINDOW, wc.lpszClassName,
-        preview ? L"Markdown reading preview — snapshot" : L"Markdown headings",
+        L"Markdown headings",
         WS_OVERLAPPEDWINDOW, r.left + 35, r.top + 35, 760, 640, owner, NULL, instance, NULL);
     if (!window) { md_free_view(v); return FALSE; }
     SetWindowLongPtrW(window, GWLP_USERDATA, (LONG_PTR)v);
-    v->label = CreateWindowW(L"STATIC", preview ? L"Read-only snapshot • F6 / Ctrl+R refresh • Esc returns to editor"
-        : L"↑ / ↓ choose • Enter / double-click jumps • Ctrl+R refresh • Esc closes", WS_CHILD | WS_VISIBLE,
+    v->label = CreateWindowW(L"STATIC", L"↑ / ↓ choose • Enter / double-click jumps • Ctrl+R refresh • Esc closes", WS_CHILD | WS_VISIBLE,
         0, 0, 1, 1, window, (HMENU)2, instance, NULL);
-    v->child = CreateWindowExW(WS_EX_CLIENTEDGE, preview ? MSFTEDIT_CLASS : L"LISTBOX", L"",
+    v->child = CreateWindowExW(WS_EX_CLIENTEDGE, L"LISTBOX", L"",
         WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_TABSTOP |
-        (preview ? (ES_MULTILINE | ES_AUTOVSCROLL | ES_NOHIDESEL) : (LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_HSCROLL)),
+        LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_HSCROLL,
         0, 0, 1, 1, window, (HMENU)1, instance, NULL);
     if (!v->label || !v->child || !SetWindowSubclass(v->child, md_child_proc, 1, (DWORD_PTR)window)) {
         DestroyWindow(window); return FALSE;
     }
     SendMessageW(v->label, WM_SETFONT, (WPARAM)GetStockObject(DEFAULT_GUI_FONT), TRUE);
     SendMessageW(v->child, WM_SETFONT, (WPARAM)GetStockObject(DEFAULT_GUI_FONT), TRUE);
-    if (preview) md_render(v);
-    else {
+    {
         SendMessageW(edit, EM_GETSEL, (WPARAM)&caret, 0);
         for (i = 0; i < v->count; ++i) {
             WCHAR label[560]; size_t k = 0, t, take = v->headings[i].length;
@@ -391,22 +474,20 @@ static BOOL md_open(HWND owner, HWND edit, BOOL preview) {
         SendMessageW(v->child, LB_SETHORIZONTALEXTENT, 3600, 0);
     }
     if (IsWindow(previous)) DestroyWindow(previous);
-    if (preview) md_preview_window = window; else md_outline_window = window;
+    md_outline_window = window;
     SendMessageW(window, WM_SIZE, 0, 0); ShowWindow(window, SW_SHOW); SetForegroundWindow(window); SetFocus(v->child);
     return TRUE;
 }
 void md_forget(HWND edit) {
-    HWND windows[2] = {md_outline_window, md_preview_window};
-    for (int i = 0; i < 2; ++i) if (IsWindow(windows[i])) {
-        MdView *v = (MdView *)GetWindowLongPtrW(windows[i], GWLP_USERDATA);
-        if (v && v->source == edit) DestroyWindow(windows[i]);
+    if (IsWindow(md_outline_window)) {
+        MdView *v = (MdView *)GetWindowLongPtrW(md_outline_window, GWLP_USERDATA);
+        if (v && v->source == edit) DestroyWindow(md_outline_window);
     }
 }
 BOOL md_command(HWND owner, HWND edit, UINT id) {
     WCHAR *s; DWORD a = 0, b = 0; BOOL ok;
     if (!IsWindow(edit)) return FALSE;
-    if (id == MD_HEADING_NAVIGATION || id == MD_READING_PREVIEW)
-        return md_open(owner, edit, id == MD_READING_PREVIEW);
+    if (id == MD_HEADING_NAVIGATION) return md_open(owner, edit);
     if (id < MD_BOLD || id > MD_TASK) return FALSE;
     if (GetWindowLongPtrW(edit, GWL_STYLE) & ES_READONLY) return FALSE;
     s = md_text(edit); if (!s) return FALSE;

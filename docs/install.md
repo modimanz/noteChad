@@ -16,7 +16,7 @@ Run in the checkout root using Command Prompt. Close noteChad before a subsequen
 python -c "import sys,struct,msilib; print(sys.version); assert struct.calcsize('P') == 8"
 call build.cmd
 if errorlevel 1 exit /b 1
-python installer\build.py --version 0.1.1
+python installer\build.py --version 0.1.2
 if errorlevel 1 exit /b 1
 python -m unittest discover -s tests -p "test_installer*.py" -v
 if errorlevel 1 exit /b 1

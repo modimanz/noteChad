@@ -4,6 +4,15 @@
 #undef wWinMain
 #include <stdio.h>
 #define CHECK(x) do { if(!(x)){fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#x);return 1;} } while(0)
+static HWND prompt_owner;
+static BOOL cancelled;
+static void CALLBACK cancel_close(HWND unused,UINT msg,UINT_PTR id,DWORD now){
+    (void)unused;(void)msg;(void)now;
+    HWND dlg=GetLastActivePopup(prompt_owner);DWORD pid=0;GetWindowThreadProcessId(dlg,&pid);
+    if(pid==GetCurrentProcessId() && GetWindow(dlg,GW_OWNER)==prompt_owner && GetDlgItem(dlg,IDYES) && GetDlgItem(dlg,IDCANCEL)){
+        KillTimer(NULL,id);cancelled=TRUE;PostMessageW(dlg,WM_COMMAND,IDCANCEL,0);
+    }
+}
 int main(void){
     instance=GetModuleHandleW(NULL);SetProcessDPIAware();
     INITCOMMONCONTROLSEX common={sizeof(common),ICC_TAB_CLASSES};InitCommonControlsEx(&common);
@@ -12,10 +21,16 @@ int main(void){
     findmsg=RegisterWindowMessageW(FINDMSGSTRINGW);
     Frame *a=create_frame(FALSE,FALSE,TRUE),*b=create_frame(FALSE,FALSE,TRUE),*api=create_frame(TRUE,TRUE,TRUE);
     CHECK(a && b && api);
+    CHECK(GetFocus()!=current(api)->doc.edit); /* Headless automation must not receive desktop typing. */
     Tab *one=current(a),*two=add_tab(a),*three=add_tab(a),*dest=current(b);
     CHECK(one && two && three && dest);
     CHECK(SetWindowTextW(two->doc.edit,L"preserved"));two->doc.dirty=TRUE;
     lstrcpyW(two->doc.path,L"C:\\synthetic-origin.md");
+    RECT close_rect;CHECK(drag_close_rect(a->strip,1,&close_rect));
+    LPARAM click=MAKELPARAM((close_rect.left+close_rect.right)/2,(close_rect.top+close_rect.bottom)/2);
+    prompt_owner=a->hwnd;CHECK(SetTimer(NULL,0,40,cancel_close));
+    SendMessageW(a->strip,WM_LBUTTONDOWN,MK_LBUTTON,click);SendMessageW(a->strip,WM_LBUTTONUP,0,click);
+    CHECK(cancelled && current(a)==three && a->count==3 && a->tabs[1]==two && two->doc.dirty);
     DWORD low=0,high=0;SendMessageW(two->doc.edit,EM_SETSEL,2,6);
     CHECK(transfer_tab(a,0,a,2));CHECK(a->tabs[0]==two && a->tabs[1]==three && a->tabs[2]==one);
     CHECK(current(a)==three);

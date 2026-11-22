@@ -24,8 +24,11 @@ A native Windows text and Markdown editor with draggable tabs, a local automatio
 | Insert local time and date | F5 |
 | Bold / inline code | Ctrl+B / Ctrl+backtick |
 | Task list / heading outline | Ctrl+Shift+L / Ctrl+Shift+O |
-| Reading preview | F6 |
+| Show / hide side-by-side Markdown preview | F6 |
+| Move keyboard focus between the source and preview | Shift+F6 |
 | Request a local completion after enabling it in **AI** | Ctrl+Space |
+
+Open a `.md` or `.markdown` file to edit on the left and read the live preview on the right. Drag the divider to resize the panes; double-click it for an even split. **F6** toggles the preview for that tab, including plain-text files and untitled notes. Click a tab’s **×** (or middle-click its label) to close just that document. Drag the label to move it. Closing an unsaved tab still asks before discarding edits.
 
 Drag a tab onto another noteChad window’s **tab strip** to move it, along its own strip to reorder it, or onto the desktop to give it a window of its own. The tab keeps its unsaved text, selection and undo history. Drop multiple files from Explorer to open them as tabs.
 

@@ -14,10 +14,13 @@
 #include "router.h"
 
 /* Stable heap documents and native EDITs, one GUI thread, many frames. */
-typedef struct Tab { Document doc; BOOL wrap; } Tab;
+typedef struct Tab { Document doc; BOOL wrap; int previewMode; } Tab; /* -1 off, 0 by extension, 1 on */
 typedef struct Frame {
     struct Frame *next;
-    HWND hwnd,strip,footer,findwin;
+    HWND hwnd,strip,footer,findwin,preview,divider,renderedEdit;
+    unsigned long long renderedRevision;
+    int splitPermille,splitGrab;
+    BOOL previewShown,previewFailed;
     HFONT mono,ui;
     Tab **tabs;
     int count,capacity,active;
@@ -34,7 +37,7 @@ static const WCHAR app[]=L"noteChad";
 enum { NEW=101, OPEN, SAVE, SAVEAS, EXIT_APP, NEW_TAB, CLOSE_TAB,
        NEW_WINDOW, MOVE_WINDOW, NEXT_TAB, PREV_TAB,
        UNDO_ID=201, CUT_ID, COPY_ID, PASTE_ID, ALL_ID, FIND_ID, NEXT_ID,
-       WRAP_ID, TIME_ID, ABOUT=501 };
+       WRAP_ID, TIME_ID, PREVIEW_ID=305, PANE_FOCUS, PREVIEW_WIDER, PREVIEW_NARROWER, PREVIEW_EQUAL, ABOUT=501 };
 static const WCHAR filters[]=L"Text and Markdown\0*.txt;*.md;*.markdown\0All files\0*.*\0\0";
 static const WCHAR savefilters[]=L"Markdown (*.md)\0*.md\0Text (*.txt)\0*.txt\0All files\0*.*\0\0";
 static Tab *current(Frame *f){return f && f->active>=0 && f->active<f->count?f->tabs[f->active]:NULL;}
@@ -54,8 +57,10 @@ static HMENU menus(BOOL isolated){
     sep(m);item(m,CLOSE_TAB,L"&Close tab\tCtrl+W");item(m,NEW_WINDOW,L"New &window\tCtrl+Shift+N");
     item(m,MOVE_WINDOW,L"&Move tab to new window\tCtrl+Shift+M");sep(m);item(m,EXIT_APP,L"E&xit window");
     m=section(bar,L"&Edit");item(m,UNDO_ID,L"&Undo\tCtrl+Z");sep(m);item(m,CUT_ID,L"Cu&t\tCtrl+X");item(m,COPY_ID,L"&Copy\tCtrl+C");item(m,PASTE_ID,L"&Paste\tCtrl+V");item(m,ALL_ID,L"Select &all\tCtrl+A");sep(m);item(m,FIND_ID,L"&Find…\tCtrl+F");item(m,NEXT_ID,L"Find &next\tF3");item(m,TIME_ID,L"Time / date\tF5");
-    m=section(bar,L"&Markdown");item(m,301,L"&Bold\tCtrl+B");item(m,302,L"Inline &code\tCtrl+`");item(m,303,L"&Task list\tCtrl+Shift+L");sep(m);item(m,304,L"Heading &outline…\tCtrl+Shift+O");item(m,305,L"&Reading preview\tF6");
+    m=section(bar,L"&Markdown");item(m,301,L"&Bold\tCtrl+B");item(m,302,L"Inline &code\tCtrl+`");item(m,303,L"&Task list\tCtrl+Shift+L");sep(m);item(m,304,L"Heading &outline…\tCtrl+Shift+O");item(m,305,L"Side-by-side &preview\tF6");
     m=section(bar,L"&View");item(m,WRAP_ID,L"&Word wrap");item(m,NEXT_TAB,L"Next tab\tCtrl+Tab");item(m,PREV_TAB,L"Previous tab\tCtrl+Shift+Tab");
+    sep(m);item(m,PANE_FOCUS,L"Switch &pane\tShift+F6");HMENU widths=section(m,L"Preview &width");
+    item(widths,PREVIEW_WIDER,L"&Wider");item(widths,PREVIEW_NARROWER,L"&Narrower");item(widths,PREVIEW_EQUAL,L"&Equal widths");
     m=section(bar,L"&AI");item(m,401,L"&Enable local completion for this session");item(m,402,L"Request a &completion…\tCtrl+Space");
     m=section(bar,L"&Help");item(m,ABOUT,L"&About noteChad");
     if(isolated){UINT ids[]={NEW,CLOSE_TAB,NEW_WINDOW,MOVE_WINDOW,NEXT_TAB,PREV_TAB};for(unsigned i=0;i<ARRAYSIZE(ids);++i)EnableMenuItem(bar,ids[i],MF_BYCOMMAND|MF_GRAYED);}
@@ -67,10 +72,10 @@ static void tab_label(Tab *t,WCHAR *label,size_t cap){
 }
 static void refresh_tabs(Frame *f){
     if(!f->strip)return;
-    /* Avoid DeleteAllItems: status changes must not cancel a live drag. */
+    /* Keep per-tab identity in native items for close gestures across reorders. */
     int n=TabCtrl_GetItemCount(f->strip);
     while(n>f->count)TabCtrl_DeleteItem(f->strip,--n);
-    for(int i=0;i<f->count;++i){WCHAR label[MAX_PATH+8];TCITEMW ti={0};tab_label(f->tabs[i],label,ARRAYSIZE(label));ti.mask=TCIF_TEXT;ti.pszText=label;
+    for(int i=0;i<f->count;++i){WCHAR label[MAX_PATH+8];TCITEMW ti={0};tab_label(f->tabs[i],label,ARRAYSIZE(label));ti.mask=TCIF_TEXT|TCIF_PARAM;ti.pszText=label;ti.lParam=(LPARAM)f->tabs[i];
         if(i<n)TabCtrl_SetItem(f->strip,i,&ti);else TabCtrl_InsertItem(f->strip,i,&ti);}
     TabCtrl_SetCurSel(f->strip,f->active);
 }
@@ -78,8 +83,57 @@ static void paint_status(Frame *f){
     Tab *t=current(f);if(!t || !f->hwnd)return;
     WCHAR title[MAX_PATH+48],label[MAX_PATH+8],state[192];tab_label(t,label,ARRAYSIZE(label));
     StringCchPrintfW(title,ARRAYSIZE(title),L"%s — noteChad",label);SetWindowTextW(f->hwnd,title);
-    StringCchPrintfW(state,ARRAYSIZE(state),L"  %s     ·     %s     ·     AI %s%s",tf_format(&t->doc.format),t->doc.dirty?L"Unsaved":L"Ready",ai_enabled()?L"on":L"off",f->controlled?L"     ·     API connected":L"");SetWindowTextW(f->footer,state);
-    HMENU m=GetMenu(f->hwnd);CheckMenuItem(m,WRAP_ID,t->wrap?MF_CHECKED:MF_UNCHECKED);CheckMenuItem(m,401,ai_enabled()?MF_CHECKED:MF_UNCHECKED);EnableMenuItem(m,402,ai_enabled()?MF_ENABLED:MF_GRAYED);refresh_tabs(f);
+    StringCchPrintfW(state,ARRAYSIZE(state),L"  %s  ·  %s  ·  AI %s%s",tf_format(&t->doc.format),t->doc.dirty?L"Unsaved":L"Ready",ai_enabled()?L"on":L"off",f->controlled?L"  ·  API connected":L"");
+    if(f->previewShown || f->previewFailed)StringCchCatW(state,ARRAYSIZE(state),f->previewFailed?L"  ·  Preview unavailable":L"  ·  Preview (F6)");
+    SetWindowTextW(f->footer,state);
+    HMENU m=GetMenu(f->hwnd);CheckMenuItem(m,305,f->previewShown?MF_CHECKED:MF_UNCHECKED);CheckMenuItem(m,WRAP_ID,t->wrap?MF_CHECKED:MF_UNCHECKED);CheckMenuItem(m,401,ai_enabled()?MF_CHECKED:MF_UNCHECKED);EnableMenuItem(m,402,ai_enabled()?MF_ENABLED:MF_GRAYED);refresh_tabs(f);
+}
+enum { PREVIEW_TIMER=7 };
+static BOOL wants_preview(Frame *f,Tab *t){
+    if(!t || (f->isolated && f->hidden))return FALSE;
+    if(t->previewMode)return t->previewMode>0;
+    const WCHAR *dot=wcsrchr(t->doc.path,L'.');
+    return !f->isolated && dot && (!_wcsicmp(dot,L".md") || !_wcsicmp(dot,L".markdown"));
+}
+static void render_active(Frame *f){
+    KillTimer(f->hwnd,PREVIEW_TIMER);Tab *t=current(f);
+    if(!t || !f->previewShown || !f->preview)return;
+    BOOL same=f->renderedEdit==t->doc.edit;
+    if(same && f->renderedRevision==t->doc.revision)return;
+    f->previewFailed=!md_preview_update(f->preview,t->doc.edit,same);
+
+    f->renderedEdit=t->doc.edit;f->renderedRevision=t->doc.revision;
+}
+static void queue_preview(Frame *f){
+    if(f->previewShown && !SetTimer(f->hwnd,PREVIEW_TIMER,180,NULL))render_active(f);
+}
+static int divider_width(Frame *f){return max(5,MulDiv(7,(int)GetDpiForWindow(f->hwnd),96));}
+static LRESULT CALLBACK divider_proc(HWND bar,UINT m,WPARAM w,LPARAM l,UINT_PTR id,DWORD_PTR data){
+    Frame *f=(Frame*)data;(void)id;
+    switch(m){
+    case WM_SETCURSOR:SetCursor(LoadCursorW(NULL,IDC_SIZEWE));return TRUE;
+    case WM_LBUTTONDOWN:f->splitGrab=(short)LOWORD(l);SetCapture(bar);return 0;
+    case WM_MOUSEMOVE:if(GetCapture()==bar && (w&MK_LBUTTON)){
+        POINT pt={(short)LOWORD(l),0};RECT r;MapWindowPoints(bar,f->hwnd,&pt,1);GetClientRect(f->hwnd,&r);
+        int usable=r.right-divider_width(f);if(usable>0){int pos=MulDiv(pt.x-f->splitGrab,1000,usable);f->splitPermille=max(150,min(850,pos));layout(f);}return 0;}break;
+    case WM_LBUTTONUP:case WM_CANCELMODE:if(GetCapture()==bar)ReleaseCapture();return 0;
+    case WM_LBUTTONDBLCLK:if(GetCapture()==bar)ReleaseCapture();f->splitPermille=500;layout(f);return 0;
+    }
+    return DefSubclassProc(bar,m,w,l);
+}
+static void sync_preview(Frame *f){
+    Tab *t=current(f);BOOL want=wants_preview(f,t);KillTimer(f->hwnd,PREVIEW_TIMER);
+    if(want && !f->preview)f->preview=md_preview_create(f->hwnd);
+    if(want && f->preview && !f->divider){
+        f->divider=CreateWindowW(L"STATIC",NULL,WS_CHILD|SS_NOTIFY,0,0,1,1,f->hwnd,(HMENU)903,instance,NULL);
+        if(f->divider && !SetWindowSubclass(f->divider,divider_proc,1,(DWORD_PTR)f)){DestroyWindow(f->divider);f->divider=NULL;}
+    }
+    f->previewShown=want && f->preview && f->divider;
+    if(!f->previewShown){f->previewFailed=want;f->renderedEdit=NULL;}
+    layout(f);
+    if(f->previewShown)render_active(f);
+    if(f->preview)ShowWindow(f->preview,f->previewShown?SW_SHOWNA:SW_HIDE);
+    if(f->divider)ShowWindow(f->divider,f->previewShown?SW_SHOWNA:SW_HIDE);
 }
 static void errorbox(Frame *f,const WCHAR *reason){MessageBoxW(f->hwnd,reason,app,MB_ICONWARNING|MB_OK);}
 static BOOL choose(Frame *f,BOOL save,WCHAR path[MAX_PATH]){
@@ -92,7 +146,7 @@ static BOOL choose(Frame *f,BOOL save,WCHAR path[MAX_PATH]){
 static BOOL save_gui(Frame *f,BOOL as){
     Tab *t=current(f);if(!t)return FALSE;WCHAR path[MAX_PATH],why[512];lstrcpyW(path,t->doc.path);
     if((as||!*path)&&!choose(f,TRUE,path))return FALSE;
-    if(!doc_save(&t->doc,path,FALSE,why,ARRAYSIZE(why))){errorbox(f,why);return FALSE;}paint_status(f);return TRUE;
+    if(!doc_save(&t->doc,path,FALSE,why,ARRAYSIZE(why))){errorbox(f,why);return FALSE;}sync_preview(f);paint_status(f);return TRUE;
 }
 static BOOL can_leave(Frame *f){
     Tab *t=current(f);if(!t || !t->doc.dirty)return TRUE;
@@ -102,8 +156,8 @@ static BOOL can_leave(Frame *f){
     return r==IDNO || (r==IDYES && save_gui(f,FALSE));
 }
 static void dismiss_views(Frame *f,Tab *t){
-    if(f->findwin){DestroyWindow(f->findwin);f->findwin=NULL;}
-    if(t)md_forget(t->doc.edit);
+    if(f->findwin && t==current(f)){DestroyWindow(f->findwin);f->findwin=NULL;}
+    if(t){md_forget(t->doc.edit);if(f->renderedEdit==t->doc.edit)f->renderedEdit=NULL;}
 }
 static void layout(Frame *f){
     if(!f || !f->hwnd)return;RECT r;GetClientRect(f->hwnd,&r);
@@ -112,7 +166,12 @@ static void layout(Frame *f){
     if(f->strip){RECT page={0,0,r.right,foot};MoveWindow(f->strip,0,0,r.right,foot,TRUE);TabCtrl_AdjustRect(f->strip,FALSE,&page);top=page.top;
         MoveWindow(f->strip,0,0,r.right,top,TRUE);}
     if(top>foot)top=foot;
-    for(int i=0;i<f->count;++i)MoveWindow(f->tabs[i]->doc.edit,0,top,r.right,foot-top,TRUE);
+    int source=r.right;
+    if(f->previewShown){int gap=min(r.right,divider_width(f)),usable=r.right-gap;
+        int minimum=min(usable/2,MulDiv(100,(int)GetDpiForWindow(f->hwnd),96));
+        int desired=MulDiv(usable,f->splitPermille,1000);source=max(minimum,min(usable-minimum,desired));
+        MoveWindow(f->divider,source,top,gap,foot-top,TRUE);MoveWindow(f->preview,source+gap,top,usable-source,foot-top,TRUE);}
+    if(current(f))MoveWindow(current(f)->doc.edit,0,top,source,foot-top,TRUE);
     MoveWindow(f->footer,0,foot,r.right,height,TRUE);
 }
 static HWND new_edit(Frame *f,BOOL wrapping){
@@ -131,7 +190,8 @@ static BOOL reserve_tabs(Frame *f,int needed){
 static void select_tab(Frame *f,int index){
     if(index<0 || index>=f->count)return;
     Tab *old=current(f);if(f->active!=index){dismiss_views(f,old);if(old)ShowWindow(old->doc.edit,SW_HIDE);f->active=index;}
-    Tab *t=current(f);ShowWindow(t->doc.edit,SW_SHOW);layout(f);paint_status(f);SetFocus(t->doc.edit);
+    Tab *t=current(f);ShowWindow(t->doc.edit,SW_SHOWNA);sync_preview(f);paint_status(f);
+    if(IsWindowVisible(f->hwnd))SetFocus(t->doc.edit);
 }
 static Tab *add_tab(Frame *f){
     if(!reserve_tabs(f,f->count+1))return NULL;
@@ -154,11 +214,11 @@ static void open_paths(Frame *f,int count,const WCHAR *const *paths){
         }
         if(!t){errorbox(f,L"Not enough memory for another tab.");break;}
         WCHAR why[512];if(!doc_open(&t->doc,paths[i],why,ARRAYSIZE(why))){errorbox(f,why);if(fresh && f->count>1)remove_tab(f,f->active,TRUE);}
-        paint_status(f);
+        sync_preview(f);paint_status(f);
     }
 }
 static void open_gui(Frame *f){
-    if(f->isolated){WCHAR path[MAX_PATH]=L"";if(choose(f,FALSE,path)&&can_leave(f)){WCHAR why[512];if(!doc_open(&current(f)->doc,path,why,ARRAYSIZE(why)))errorbox(f,why);paint_status(f);}return;}
+    if(f->isolated){WCHAR path[MAX_PATH]=L"";if(choose(f,FALSE,path)&&can_leave(f)){WCHAR why[512];if(!doc_open(&current(f)->doc,path,why,ARRAYSIZE(why)))errorbox(f,why);else{f->renderedEdit=NULL;sync_preview(f);}paint_status(f);}return;}
     WCHAR *buffer=HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,65536*sizeof(WCHAR));if(!buffer)return;
     OPENFILENAMEW o={sizeof(o)};o.hwndOwner=f->hwnd;o.lpstrFile=buffer;o.nMaxFile=65536;o.lpstrFilter=filters;
     o.Flags=OFN_EXPLORER|OFN_ALLOWMULTISELECT|OFN_NOCHANGEDIR|OFN_PATHMUSTEXIST|OFN_FILEMUSTEXIST;
@@ -173,7 +233,7 @@ static void toggle_wrap(Frame *f){
     Tab *t=current(f);HWND old=t->doc.edit;WCHAR *s=doc_snapshot(old);if(!s){errorbox(f,L"Not enough memory to change wrapping.");return;}
     DWORD a=0,b=0;SendMessageW(old,EM_GETSEL,(WPARAM)&a,(LPARAM)&b);HWND e=new_edit(f,!t->wrap);
     if(e && SetWindowTextW(e,s)){dismiss_views(f,t);RemovePropW(old,L"noteChad.ai.request");t->doc.edit=e;++t->doc.revision;t->wrap=!t->wrap;DestroyWindow(old);ShowWindow(e,SW_SHOW);layout(f);SendMessageW(e,EM_SETSEL,a,b);SendMessageW(e,EM_SCROLLCARET,0,0);SetFocus(e);}
-    else{if(e)DestroyWindow(e);errorbox(f,L"Could not change wrapping.");}LocalFree(s);paint_status(f);
+    else{if(e)DestroyWindow(e);errorbox(f,L"Could not change wrapping.");}LocalFree(s);sync_preview(f);paint_status(f);
 }
 static void find_dialog(Frame *f){
     if(f->findwin){SetForegroundWindow(f->findwin);return;}
@@ -225,7 +285,17 @@ static void move_new(Frame *source,int index,const POINT *point){
 static void command(Frame *f,UINT id){
     Tab *t=current(f);if(!t)return;
     if(f->isolated && (id==NEW || (id>=NEW_TAB && id<=PREV_TAB)))return;
+    if(f->previewShown && GetFocus()==f->preview){
+        if(id==COPY_ID){SendMessageW(f->preview,WM_COPY,0,0);return;}
+        if(id==ALL_ID){SendMessageW(f->preview,EM_SETSEL,0,-1);return;}
+        if(id==UNDO_ID || id==CUT_ID || id==PASTE_ID || id==TIME_ID || (id>=301 && id<=303) || id==402)return;
+    }
     switch(id){
+    case PREVIEW_ID:t->previewMode=f->previewShown?-1:1;sync_preview(f);paint_status(f);SetFocus(t->doc.edit);break;
+    case PANE_FOCUS:if(f->previewShown)SetFocus(GetFocus()==f->preview?t->doc.edit:f->preview);break;
+    case PREVIEW_WIDER:case PREVIEW_NARROWER:case PREVIEW_EQUAL:if(f->previewShown){
+        int next=f->splitPermille+(id==PREVIEW_WIDER?-100:100);
+        f->splitPermille=id==PREVIEW_EQUAL?500:max(150,min(850,next));layout(f);}break;
     case NEW:case NEW_TAB:if(!add_tab(f))errorbox(f,L"Could not create another tab.");break;
     case NEW_WINDOW:create_frame(FALSE,FALSE,TRUE);break;
     case NEXT_TAB:select_tab(f,(f->active+1)%f->count);break;
@@ -239,7 +309,7 @@ static void command(Frame *f,UINT id){
     case WRAP_ID:toggle_wrap(f);break;case TIME_ID:{WCHAR time[200],date[100];if(GetTimeFormatEx(NULL,TIME_NOSECONDS,NULL,NULL,time,100)&&GetDateFormatEx(NULL,DATE_SHORTDATE,NULL,NULL,date,100,NULL)){StringCchCatW(time,200,L" ");StringCchCatW(time,200,date);SendMessageW(t->doc.edit,EM_REPLACESEL,TRUE,(LPARAM)time);}break;}
     case 401:ai_toggle(f->hwnd);for(Frame *p=frames;p;p=p->next)paint_status(p);break;
     case 402:if(ai_enabled())ai_request(f->hwnd,t->doc.edit,t->doc.revision);break;
-    case ABOUT:MessageBoxW(f->hwnd,L"noteChad\nNative text and Markdown editor\n\nCtrl+T: New tab • Ctrl+W: Close tab\nCtrl+Shift+N: New window\nCtrl+Shift+M: Move tab to new window\nF6: Reading preview\nCtrl+Shift+O: Heading outline\nCtrl+Space: Local AI completion (opt-in)\n\nHermes can open an isolated session with --api or --api-window.",app,MB_OK|MB_ICONINFORMATION);break;
+    case ABOUT:MessageBoxW(f->hwnd,L"noteChad\nNative text and Markdown editor\n\nCtrl+T: New tab • Ctrl+W: Close tab\nCtrl+Shift+N: New window\nCtrl+Shift+M: Move tab to new window\nF6: Toggle side-by-side Markdown preview\nCtrl+Shift+O: Heading outline\nCtrl+Space: Local AI completion (opt-in)\n\nHermes can open an isolated session with --api or --api-window.",app,MB_OK|MB_ICONINFORMATION);break;
     default:if(id>=301 && id<=305)md_command(f->hwnd,t->doc.edit,id);break;
     }
 }
@@ -253,6 +323,16 @@ static BOOL can_close_frame(Frame *f){
 static void finish_busy(Frame *f){
     --f->busy;
     if(!f->busy && f->eof_pending)PostMessageW(f->hwnd,WM_NOTECHAD_EOF,0,0);
+}
+static void close_tab_at(Frame *f,int index){
+    if(!movable(f) || index<0 || index>=f->count)return;
+    int previous=f->active;BOOL dirty=f->tabs[index]->doc.dirty;
+    ++f->busy;
+    if(dirty && index!=previous)select_tab(f,index);
+    BOOL yes=!dirty || can_leave(f);
+    if(previous!=index && f->active!=previous)select_tab(f,previous);
+    --f->busy;
+    if(yes){if(f->count==1)DestroyWindow(f->hwnd);else remove_tab(f,index,TRUE);}
 }
 static LRESULT CALLBACK window_proc(HWND h,UINT m,WPARAM w,LPARAM l){
     Frame *f=(Frame *)GetWindowLongPtrW(h,GWLP_USERDATA);
@@ -269,15 +349,17 @@ static LRESULT CALLBACK window_proc(HWND h,UINT m,WPARAM w,LPARAM l){
             if(!f->strip)return -1;SendMessageW(f->strip,WM_SETFONT,(WPARAM)f->ui,TRUE);}
         return 0;}
     case WM_SIZE:layout(f);return 0;
+    case WM_TIMER:if(w==PREVIEW_TIMER){BOOL failed=f->previewFailed;render_active(f);if(failed!=f->previewFailed)paint_status(f);return 0;}break;
     case WM_SETFOCUS:if(current(f))SetFocus(current(f)->doc.edit);return 0;
     case WM_NOTIFY:if(f->strip && ((NMHDR *)l)->hwndFrom==f->strip && ((NMHDR *)l)->code==TCN_SELCHANGE){if(!f->busy)select_tab(f,TabCtrl_GetCurSel(f->strip));else refresh_tabs(f);}return 0;
     case WM_COMMAND:
-        if(l){for(int i=0;i<f->count;++i)if((HWND)l==f->tabs[i]->doc.edit){if(HIWORD(w)==EN_CHANGE){doc_changed(&f->tabs[i]->doc);paint_status(f);}return 0;}return 0;}
+        if(l){for(int i=0;i<f->count;++i)if((HWND)l==f->tabs[i]->doc.edit){if(HIWORD(w)==EN_CHANGE){BOOL dirty=f->tabs[i]->doc.dirty;doc_changed(&f->tabs[i]->doc);if(!dirty)paint_status(f);if(i==f->active)queue_preview(f);}return 0;}return 0;}
         if(f->busy || !IsWindowEnabled(h))return 0;
         /* These calls may destroy this frame: do not touch f afterward. */
         if(LOWORD(w)==MOVE_WINDOW){if(!f->isolated)move_new(f,f->active,NULL);return 0;}
-        if(LOWORD(w)==CLOSE_TAB && !f->isolated){++f->busy;BOOL yes=current(f)&&can_leave(f);--f->busy;if(yes){if(f->count==1)DestroyWindow(h);else remove_tab(f,f->active,TRUE);}return 0;}
+        if(LOWORD(w)==CLOSE_TAB){close_tab_at(f,f->active);return 0;}
         ++f->busy;command(f,LOWORD(w));finish_busy(f);return 0;
+    case WM_NC_TABCLOSE:if(f->strip && (HWND)l==f->strip && w<(WPARAM)f->count)close_tab_at(f,(int)w);return 0;
     case WM_NC_TABDROP:{TabDrop drop;
         if(!drag_take(h,l,&drop))return 0;
         Frame *source=frame_for(h),*target=drop.target?frame_for(drop.target):NULL;
@@ -288,11 +370,11 @@ static LRESULT CALLBACK window_proc(HWND h,UINT m,WPARAM w,LPARAM l){
         if(!f->isolated && !f->busy && IsWindowEnabled(h)){UINT n=DragQueryFileW(drop,0xFFFFFFFF,NULL,0);++f->busy;
             for(UINT i=0;i<n;++i){UINT len=DragQueryFileW(drop,i,NULL,0);WCHAR path[MAX_PATH];if(len && len<MAX_PATH && DragQueryFileW(drop,i,path,MAX_PATH)){const WCHAR *p=path;open_paths(f,1,&p);}else errorbox(f,L"Use a path shorter than 260 characters.");}--f->busy;}
         DragFinish(drop);return 0;}
-    case WM_NOTECHAD_API:if(f->controlled && current(f) && api_owns(l)){ApiRequest *r=(ApiRequest *)l;doc_dispatch(&current(f)->doc,r,!f->busy&&IsWindowEnabled(h));if(r->ok && strcmp(r->verb,"read"))paint_status(f);}return 0;
+    case WM_NOTECHAD_API:if(f->controlled && current(f) && api_owns(l)){ApiRequest *r=(ApiRequest *)l;doc_dispatch(&current(f)->doc,r,!f->busy&&IsWindowEnabled(h));if(r->ok && strcmp(r->verb,"read")){queue_preview(f);paint_status(f);}}return 0;
     case WM_NOTECHAD_EOF:if(f->controlled){if(f->hidden && f->busy){f->eof_pending=TRUE;return 0;}f->eof_pending=FALSE;f->controlled=FALSE;if(f->hidden)DestroyWindow(h);else paint_status(f);}return 0;
     case WM_NOTECHAD_AI:{Tab *t=current(f);++f->busy;ai_result(h,t?t->doc.edit:NULL,t?t->doc.revision:0,l);finish_busy(f);return 0;}
     case WM_QUERYENDSESSION:case WM_CLOSE:{if(f->busy || f->closing)return FALSE;++f->busy;BOOL yes=can_close_frame(f);finish_busy(f);if(m==WM_QUERYENDSESSION)return yes;if(yes)DestroyWindow(h);return 0;}
-    case WM_DESTROY:{f->closing=TRUE;dismiss_views(f,current(f));
+    case WM_DESTROY:{f->closing=TRUE;KillTimer(h,PREVIEW_TIMER);dismiss_views(f,current(f));
         for(int i=0;i<f->count;++i){md_forget(f->tabs[i]->doc.edit);RemovePropW(f->tabs[i]->doc.edit,L"noteChad.ai.request");}return 0;}
     case WM_NCDESTROY:{Frame **p=&frames;while(*p && *p!=f)p=&(*p)->next;if(*p)*p=f->next;
         for(int i=0;i<f->count;++i)HeapFree(GetProcessHeap(),0,f->tabs[i]);
@@ -311,7 +393,7 @@ static BOOL present_frame(Frame *f){
 }
 static Frame *create_frame(BOOL controlled,BOOL hidden,BOOL blank){
     Frame *f=HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,sizeof(*f));if(!f)return NULL;
-    f->controlled=controlled;f->isolated=controlled;f->hidden=hidden;f->active=-1;f->next=frames;frames=f;
+    f->controlled=controlled;f->isolated=controlled;f->hidden=hidden;f->active=-1;f->splitPermille=500;f->next=frames;frames=f;
     HWND h=CreateWindowW(L"NoteChad.Editor",app,WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,900,650,NULL,menus(controlled),instance,f);
     if(!h)return NULL;
     if(blank && !add_tab(f)){DestroyWindow(h);return NULL;}
@@ -339,11 +421,12 @@ int WINAPI wWinMain(HINSTANCE inst,HINSTANCE prev,PWSTR cmd,int show){
     if(controlled && !api_start(f->hwnd)){DestroyWindow(f->hwnd);return 2;}
     ACCEL keys[]={ {C,'N',NEW},{C,'T',NEW_TAB},{C,'W',CLOSE_TAB},{CS,'N',NEW_WINDOW},{CS,'M',MOVE_WINDOW},{C,VK_TAB,NEXT_TAB},{CS,VK_TAB,PREV_TAB},
         {C,'O',OPEN},{C,'S',SAVE},{CS,'S',SAVEAS},{C,'A',ALL_ID},{C,'F',FIND_ID},{FVIRTKEY,VK_F3,NEXT_ID},{FVIRTKEY,VK_F5,TIME_ID},
-        {C,'B',301},{C,VK_OEM_3,302},{CS,'L',303},{CS,'O',304},{FVIRTKEY,VK_F6,305},{C,VK_SPACE,402} };
+        {C,'B',301},{C,VK_OEM_3,302},{CS,'L',303},{CS,'O',304},{FVIRTKEY|FSHIFT,VK_F6,PANE_FOCUS},{FVIRTKEY,VK_F6,PREVIEW_ID},{C,VK_SPACE,402} };
     HACCEL accelerators=CreateAcceleratorTableW(keys,ARRAYSIZE(keys));MSG msg;int res;
     while((res=GetMessageW(&msg,NULL,0,0))>0){
         BOOL dialog=FALSE;for(Frame *p=frames;p;p=p->next)if(p->findwin && IsDialogMessageW(p->findwin,&msg)){dialog=TRUE;break;}if(dialog)continue;
         Frame *owner=frame_for(GetAncestor(msg.hwnd,GA_ROOT));
+        if(owner && owner->previewShown && msg.hwnd==owner->preview && msg.message==WM_KEYDOWN && msg.wParam==VK_ESCAPE){SendMessageW(owner->hwnd,WM_COMMAND,PREVIEW_ID,0);continue;}
         if(owner && TranslateAcceleratorW(owner->hwnd,accelerators,&msg))continue;
         TranslateMessage(&msg);DispatchMessageW(&msg);
     }

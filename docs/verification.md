@@ -1,12 +1,14 @@
 # Windows x64 verification
 
-`bin/noteChad.exe` and the optional `bin/noteChad-asm.exe` both measured **89,600 bytes (87.5 KiB)** in the tested MSVC x64 builds. Replacing the C offset routine with the MASM version did not reduce the final PE size. The comparison is for this routine, not a claim about a hypothetical all-assembly editor.
+`bin/noteChad.exe` and the optional `bin/noteChad-asm.exe` both measured **99,328 bytes (97 KiB)** for v0.1.2 in the tested MSVC x64 builds. Replacing the C offset routine with the MASM version did not reduce the final PE size. The comparison is for this routine, not a claim about a hypothetical all-assembly editor.
 
 `dumpbin /dependents` showed Windows OS and Universal CRT imports, with `WINHTTP.dll` delay-loaded. No model, browser runtime or Python interpreter is part of the editor executable.
 
 | Check | Entry point | What was exercised |
 |---|---|---|
 | Tabs and windows | `python tests/test_tabs_core.py`, `python tests/test_router.py`, `python tests/test_window_drag.py` | Two separate launches share the normal window workspace. A dragged dirty tab keeps its native editor, selection, undo and original path. Cancelling a window close preserves unsaved tabs. |
+| Split Markdown workspace | `python tests/test_split_workspace.py` | Live unsaved rendering without touching disk; switching/moving tabs; divider and keyboard controls; Cancel/Save on a background tab; a canceled Save As; oversize preview recovery; isolated API writes refused during GUI Open. |
+| Close button | `python tests/test_tabclose_build.py`, `python tests/test_tabs_core_native.py`, `python tests/test_drag_build.py` | Native glyph pixels and hit rectangles, press/release, capture loss, stale tab identity and overflow; click a dirty background tab’s × and cancel without losing either tab. |
 | Installer | `python tests/test_installer.py`, `python installer/verify.py` | Read back per-user MSI tables, extract the embedded cabinet and compare its executable with the build and SHA-256 receipt. |
 | Native editor | `python tests/test_editor.py` | Launch, edit, save and reopen a Markdown file; unsaved GUI changes visible to the API; reject stale changes, unrelated overwrite, changed-on-disk save and dirty load; Undo of Markdown/API selection replacement. |
 | File I/O | `python tests/test_textfile_build.py` | 307 native checks on real temporary files, including both common Unicode encodings, round trips, write conflicts and concurrent exclusive creation. |

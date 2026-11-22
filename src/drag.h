@@ -3,6 +3,16 @@
 #include <windows.h>
 
 #define WM_NC_TABDROP (WM_APP + 60)
+#define WM_NC_TABCLOSE (WM_APP + 61)
+
+/* drag_attach also reserves native label padding and paints close surfaces.
+   No parent drawing/setup is required. Populate TCIF_PARAM with a stable Tab*
+   on EVERY insert/refresh: close release validates both identity and geometry.
+   WM_NC_TABCLOSE is synchronous: WPARAM=requested index, LPARAM=strip HWND.
+   The parent owns document/prompt policy and may destroy the strip in response.
+   Full visible hit rectangle in strip coordinates, FALSE if clipped/overflowed.
+   Labels remain native/accessibility-readable; the X is a mouse decoration. */
+BOOL drag_close_rect(HWND strip, int index, RECT *out);
 typedef struct { HWND target; int index; POINT screen; } TabDrop;
 
 /* GUI-thread only. Attach ordinary (not API-controlled) direct-child native tabs.
